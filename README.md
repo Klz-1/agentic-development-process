@@ -38,6 +38,20 @@ While Anthropic's blog covers the "what," this guide covers the "how" in exhaust
 - **Agent Guardrails** - Explicit prohibitions to prevent context-pressure shortcuts
 - **File-Based Communication** - Bidirectional protocol between master and subagents
 
+## How to Use This Document
+
+The main document (`AGENTIC-DEVELOPMENT-PROCESS.md`) is designed to be used as a **system prompt** for an AI coding agent (like Claude Code) to initialize it as the Master Orchestrator.
+
+**Typical Workflow:**
+
+1. **Initialize Master Agent:** Feed `AGENTIC-DEVELOPMENT-PROCESS.md` + your `prd.md` (Product Requirements Document) to Claude Code
+2. **Master Plans Phases:** The AI agent reads your PRD and breaks it into phases using this process
+3. **Master Creates Subagent Prompts:** For each phase, the Master prepares prompts for subagents
+4. **Subagents Execute:** Each subagent works in its own git worktree following the guidelines
+5. **Master Reviews & Merges:** Master coordinates, reviews, and merges completed phases
+
+> **Note:** When you see "(You)" in `AGENTIC-DEVELOPMENT-PROCESS.md`, it addresses the AI agent that will become the Master Orchestrator after reading the prompt.
+
 ## Quick Start
 
 ### 1. Set Up Your Project
