@@ -37,6 +37,7 @@ While Anthropic's blog covers the "what," this guide covers the "how" in exhaust
 - **Code Review Process** - Scoring system and review templates
 - **Agent Guardrails** - Explicit prohibitions to prevent context-pressure shortcuts
 - **File-Based Communication** - Bidirectional protocol between master and subagents
+- **Tmux Orchestration** - Real-time, autonomous monitoring of subagent work with automated alerts
 
 ## How to Use This Document
 
@@ -99,10 +100,26 @@ As master orchestrator:
 - Provide guidance via MASTER-NOTES.md
 - Review and merge when quality gates pass
 
+### 5. (Optional) Enable Tmux Monitoring
+
+For real-time, autonomous monitoring with automated alerts:
+
+```bash
+# Set up tmux session with dashboard
+./scripts/setup-tmux-session.sh
+
+# Attach to monitor all phases
+tmux attach -t agentic-dev
+```
+
+See [TMUX-ORCHESTRATION.md](./TMUX-ORCHESTRATION.md) for the complete guide.
+
 ## Documentation
 
 - **[Full Guide](./AGENTIC-DEVELOPMENT-PROCESS.md)** - Complete operational playbook
+- **[Tmux Orchestration](./TMUX-ORCHESTRATION.md)** - Real-time monitoring with automated alerts
 - **[Templates](./templates/)** - Ready-to-use templates for all coordination files
+- **[Scripts](./scripts/)** - Automation scripts for tmux setup and monitoring
 - **[Examples](./examples/)** - Sample phase breakdowns for different project types
 
 ## Core Concepts

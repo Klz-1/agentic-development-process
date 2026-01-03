@@ -36,6 +36,7 @@ This process was developed independently in October 2025 through real-world prod
 10. [Setup for New Project](#setup-for-new-project)
 11. [Best Practices](#best-practices)
 12. [Templates](#templates)
+13. [Tmux Orchestration](#tmux-orchestration) *(NEW)*
 
 ---
 
@@ -1274,6 +1275,85 @@ git diff --cached
 
 **I'll check every 10-30 minutes.**
 ```
+
+---
+
+## Tmux Orchestration
+
+### **Autonomous Monitoring with Tmux**
+
+The standard agentic development process requires manual polling every 10-30 minutes. **Tmux orchestration** transforms this into real-time, autonomous monitoring with automated alerts.
+
+**See:** [TMUX-ORCHESTRATION.md](./TMUX-ORCHESTRATION.md) for the complete guide.
+
+### **Why Tmux?**
+
+| Manual Polling | Tmux Orchestration |
+|----------------|---------------------|
+| Check every 10-30 min | Real-time streaming |
+| Active file reading | Passive monitoring |
+| One terminal at a time | All phases visible |
+| Lost on disconnect | Persistent sessions |
+| No alerts | Automated notifications |
+
+### **Quick Setup**
+
+```bash
+# 1. Navigate to project
+cd /path/to/your-project
+
+# 2. Run setup script
+./scripts/setup-tmux-session.sh
+
+# 3. Attach to session
+tmux attach -t agentic-dev
+```
+
+### **Session Layout**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Window 0: Dashboard                                             │
+│   - Master PROGRESS.md (auto-refresh)                           │
+│   - Phase status overview                                       │
+│   - Alert monitor (BLOCKERS, COMPLETED, QUESTIONS)              │
+├─────────────────────────────────────────────────────────────────┤
+│ Window 1-N: Phase Worktrees                                     │
+│   - Subagent workspace                                          │
+│   - Progress monitoring                                         │
+│   - Git activity                                                │
+├─────────────────────────────────────────────────────────────────┤
+│ Window N+1: Git Operations                                      │
+│   - Merge operations                                            │
+│   - Branch management                                           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### **Automated Alerts**
+
+The `alert-on-change.sh` script monitors for:
+
+- **🚨 BLOCKERS.md** - Subagent stuck (immediate action required)
+- **🎉 COMPLETED.md** - Phase done (queue for review)
+- **❓ QUESTIONS.md** - Subagent has questions (respond when able)
+- **📝 PROGRESS.md** - Progress updates (passive awareness)
+
+### **Scripts Included**
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/setup-tmux-session.sh` | Create orchestration session |
+| `scripts/alert-on-change.sh` | Monitor and alert on file changes |
+| `scripts/phase-status-overview.sh` | Display all phases status |
+| `scripts/monitor-phase.sh` | Detailed single phase monitoring |
+
+### **Key Benefits**
+
+1. **Persistent Sessions** - Work continues even if connection drops
+2. **Real-Time Visibility** - See subagent output as it happens
+3. **Automated Alerts** - Get notified when attention needed
+4. **Parallel Monitoring** - View multiple phases simultaneously
+5. **Programmatic Control** - Script complex workflows
 
 ---
 
