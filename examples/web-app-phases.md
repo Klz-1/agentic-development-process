@@ -339,17 +339,41 @@ This example shows how to break down a typical web application into phases using
 # From main project directory
 cd /path/to/saas-dashboard
 
-# Create all phase worktrees
-git worktree add ../saas-phase-1 -b feature/phase-1-foundation
-git worktree add ../saas-phase-2 -b feature/phase-2-authentication
-git worktree add ../saas-phase-3 -b feature/phase-3-dashboard-core
-git worktree add ../saas-phase-4 -b feature/phase-4-data-viz
-git worktree add ../saas-phase-5 -b feature/phase-5-team-features
-git worktree add ../saas-phase-6 -b feature/phase-6-notifications
-git worktree add ../saas-phase-7 -b feature/phase-7-polish
+# Create worktrees directory (add to .gitignore)
+mkdir -p .worktrees
+echo ".worktrees/" >> .gitignore
+
+# Create all phase worktrees (inside the repo)
+git worktree add .worktrees/phase-1 -b feature/phase-1-foundation
+git worktree add .worktrees/phase-2 -b feature/phase-2-authentication
+git worktree add .worktrees/phase-3 -b feature/phase-3-dashboard-core
+git worktree add .worktrees/phase-4 -b feature/phase-4-data-viz
+git worktree add .worktrees/phase-5 -b feature/phase-5-team-features
+git worktree add .worktrees/phase-6 -b feature/phase-6-notifications
+git worktree add .worktrees/phase-7 -b feature/phase-7-polish
+
+# Set up .phase-status directories for communication
+for i in 1 2 3 4 5 6 7; do
+  mkdir -p .worktrees/phase-$i/.phase-status
+done
 
 # List worktrees
 git worktree list
+```
+
+## Cleanup After PR Merge
+
+After each phase's PR is merged to develop:
+
+```bash
+# Remove the worktree
+git worktree remove .worktrees/phase-1
+
+# Delete the remote branch
+git push origin --delete feature/phase-1-foundation
+
+# Prune worktree references
+git worktree prune
 ```
 
 ---

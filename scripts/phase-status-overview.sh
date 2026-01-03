@@ -50,8 +50,8 @@ find_phase_dirs() {
         fi
     done
 
-    # Check git worktrees
-    if [ -d "$PROJECT_DIR/.git" ]; then
+    # Check git worktrees (note: .git is a file in worktrees, directory in main repo)
+    if [ -d "$PROJECT_DIR/.git" ] || [ -f "$PROJECT_DIR/.git" ]; then
         while IFS= read -r line; do
             local worktree_path=$(echo "$line" | awk '{print $1}')
             if [ -d "$worktree_path/.phase-status" ]; then

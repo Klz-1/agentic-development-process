@@ -58,20 +58,29 @@ The main document (`AGENTIC-DEVELOPMENT-PROCESS.md`) is designed to be used as a
 ### 1. Set Up Your Project
 
 ```bash
+# Clone or copy the agentic-development-process repo
+git clone https://github.com/user/agentic-development-process.git /tmp/adp
+
 # Create coordination structure
 mkdir -p .coordination/status-reports .coordination/archives docs
 
-# Create core files
-touch docs/PROGRESS.md
-touch .coordination/SUBAGENT-GUIDELINES.md
-touch .coordination/COMMIT-WORKFLOW.md
-
-# Copy templates from templates/ directory
+# Copy templates (explicit commands)
+cp /tmp/adp/templates/SUBAGENT-GUIDELINES.md .coordination/
+cp /tmp/adp/templates/COMMIT-WORKFLOW.md .coordination/
+cp /tmp/adp/templates/PROGRESS-TEMPLATE.md docs/PROGRESS.md
+cp /tmp/adp/templates/MASTER-NOTES-TEMPLATE.md .coordination/
+cp /tmp/adp/templates/SESSION-SUMMARY-TEMPLATE.md .coordination/
+cp /tmp/adp/templates/PR-REVIEW-TEMPLATE.md .coordination/
 
 # Create worktrees directory (add to .gitignore)
 mkdir -p .worktrees
 echo ".worktrees/" >> .gitignore
+
+# Clean up
+rm -rf /tmp/adp
 ```
+
+**Alternative: Copy templates manually from the `templates/` directory in this repo.**
 
 ### 2. Create Phase Worktrees
 

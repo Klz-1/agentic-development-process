@@ -328,6 +328,122 @@ gh pr review <PR-NUMBER> --request-changes --body "Feedback from review..."
 echo "## PR Rejected - Changes Requested" >> .worktrees/phase-X/.phase-status/MASTER-NOTES.md
 ```
 
+### **PR Rejection & Resubmission Protocol**
+
+When a PR is rejected, follow this structured process:
+
+**1. Master Orchestrator Creates Detailed Feedback:**
+```markdown
+## PR Rejected - Changes Requested
+
+**PR:** #[NUMBER]
+**Rejected:** [Date/Time]
+**Reason:** [Brief summary]
+
+### Required Changes
+1. [ ] [Specific change 1 with file/location]
+2. [ ] [Specific change 2 with file/location]
+3. [ ] [Specific change 3 with file/location]
+
+### Concerns Addressed
+- [Concern 1]: [Why it's a problem] → [Expected fix]
+- [Concern 2]: [Why it's a problem] → [Expected fix]
+
+### Resubmission Requirements
+- [ ] All required changes implemented
+- [ ] Tests updated/added for changes
+- [ ] Tests passing (100%)
+- [ ] Self-review completed
+
+### Next Steps
+1. Address all required changes
+2. Update PROGRESS.md with fixes
+3. Push changes to same branch (PR updates automatically)
+4. Mark COMPLETED.md when ready for re-review
+```
+
+**2. Subagent Addresses Feedback:**
+- Work through required changes checklist
+- Update tests as needed
+- Commit with message: `fix(phase-X): address PR feedback - [description]`
+- Push to same branch (PR updates automatically)
+
+**3. Re-review Cycle:**
+- Subagent marks COMPLETED.md when ready
+- Master receives alert, conducts re-review
+- Present new recommendation to user
+- Repeat until approved
+
+### **Merge Conflict Resolution**
+
+Conflicts can occur when develop branch has changed since the phase branch was created.
+
+**Detecting Conflicts:**
+```bash
+# Check if PR has conflicts
+gh pr view <PR-NUMBER> --json mergeable,mergeStateStatus
+
+# Or manually check
+cd .worktrees/phase-X
+git fetch origin develop
+git merge origin/develop --no-commit --no-ff
+# If conflicts, they'll be listed
+git merge --abort  # Cancel the test merge
+```
+
+**Resolution Process:**
+
+**Option A: Subagent Resolves (Preferred)**
+```bash
+# Master instructs subagent via MASTER-NOTES.md:
+## Merge Conflict Resolution Required
+
+Conflicts detected with develop branch. Please resolve:
+
+1. Fetch latest develop:
+   git fetch origin develop
+
+2. Merge develop into your branch:
+   git merge origin/develop
+
+3. Resolve conflicts in listed files:
+   - path/to/conflicted/file1.ts
+   - path/to/conflicted/file2.ts
+
+4. After resolving, run full test suite
+
+5. Commit the merge:
+   git add .
+   git commit -m "merge: resolve conflicts with develop"
+
+6. Push and update COMPLETED.md when ready
+```
+
+**Option B: Master Resolves (If Subagent Unavailable)**
+```bash
+cd .worktrees/phase-X
+git fetch origin develop
+git merge origin/develop
+
+# Resolve conflicts manually
+# Review each conflict carefully
+# Prefer phase changes unless develop has critical fixes
+
+git add .
+git commit -m "merge: resolve conflicts with develop"
+git push origin feature/phase-X-name
+
+# Run tests to verify resolution
+npm test
+```
+
+**Conflict Resolution Guidelines:**
+- **Prefer phase changes** for feature code
+- **Prefer develop changes** for infrastructure/config
+- **When unclear:** Ask user for guidance
+- **Always test** after resolution before pushing
+- **Document** complex resolutions in PR comments
+
 ### **Cleanup After PR Merge**
 
 **IMPORTANT: Always clean up worktrees after PR is merged to develop.**
