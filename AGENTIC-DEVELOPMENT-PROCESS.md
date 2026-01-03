@@ -104,13 +104,21 @@ Master Orchestrator Agent (You)
 - Validate integration points
 - Enforce quality gates
 
-**4. Documentation Management**
+**4. Pull Request Review & Recommendation**
+- Review PRs created by subagents
+- Verify CI/CD pipeline passes
+- Check test evidence and quality gates
+- **Present merge recommendation to user** (APPROVE/REJECT with rationale)
+- User makes final merge decision
+- Execute merge only after user approval
+
+**5. Documentation Management**
 - Maintain master dashboard
 - Create completion reports
 - Log decisions and learnings
 - Archive historical docs
 
-**5. Strategic Planning**
+**6. Strategic Planning**
 - Identify parallel work opportunities
 - Create new worktrees when ready
 - Manage phase dependencies
@@ -253,21 +261,71 @@ EOF
 )"
 ```
 
-**Review & Merge PR:**
+**Master Orchestrator Reviews PR:**
+
+1. **Fetch PR details:**
 ```bash
-# Master Orchestrator reviews the PR
-# - Check CI/CD passes
-# - Verify test evidence in PR description
-# - Review code changes
-# - Approve and merge via GitHub UI or:
+gh pr view <PR-NUMBER> --json title,body,state,reviews,statusCheckRollup
+```
 
-gh pr merge --squash  # or --merge for full history
+2. **Review checklist:**
+   - [ ] CI/CD pipeline passes
+   - [ ] Test evidence in PR description
+   - [ ] Quality gates documented
+   - [ ] Code review score ≥ 8.0/10
+   - [ ] No security issues
+   - [ ] Integration verified
 
-# Tag the completion (from main repo)
+3. **Present recommendation to user:**
+
+```markdown
+## PR Review: Phase X - [Title]
+
+**PR:** #[NUMBER] | **Branch:** feature/phase-X-name → develop
+
+### Recommendation: ✅ APPROVE / ❌ REJECT
+
+### Summary
+[1-2 sentence summary of what this phase implements]
+
+### Quality Assessment
+| Gate | Status | Notes |
+|------|--------|-------|
+| CI/CD | ✅ Passing | All checks green |
+| Tests | ✅ 15/15 (100%) | Full coverage |
+| Code Review | ✅ 8.5/10 | Minor improvements noted |
+| Security | ✅ No issues | No secrets, proper validation |
+| Integration | ✅ Verified | Works with Phase 1-2 |
+
+### Risk Assessment
+- **Risk Level:** Low/Medium/High
+- **Concerns:** [Any concerns or none]
+
+### Action Required
+**User: Please confirm merge approval**
+- Reply "approve" to merge this PR
+- Reply "reject" with feedback to request changes
+```
+
+**After User Approval:**
+```bash
+# User approved - execute merge
+gh pr merge <PR-NUMBER> --squash  # or --merge for full history
+
+# Tag the completion
 cd /path/to/your-project
 git pull origin develop
 git tag -a phase-X-complete -m "Phase X: Name - Complete"
 git push origin --tags
+```
+
+**If User Rejects:**
+```bash
+# Add review comment with feedback
+gh pr review <PR-NUMBER> --request-changes --body "Feedback from review..."
+
+# Notify subagent via MASTER-NOTES.md
+echo "## PR Rejected - Changes Requested" >> .worktrees/phase-X/.phase-status/MASTER-NOTES.md
 ```
 
 ### **Cleanup After PR Merge**
@@ -966,17 +1024,40 @@ Let's start with task X.1 - [description].
 - Answer questions in QUESTIONS.md
 - Help with blockers
 
-### **Step 6: Review & Merge via PR**
+### **Step 6: Review PR & Present Recommendation to User**
 
 **When phase complete:**
-1. Read `.worktrees/phase-X/.phase-status/COMPLETED.md`
-2. Verify test evidence
-3. Conduct code review (create PHASE-X-REVIEW.md)
-4. Subagent creates Pull Request to develop
-5. Review PR, verify CI passes
-6. Merge PR if approved
-7. Tag completion
-8. Update master dashboard
+
+1. **Subagent creates PR** to develop branch
+2. **Master Orchestrator reviews PR:**
+   - Read `.worktrees/phase-X/.phase-status/COMPLETED.md`
+   - Verify test evidence and quality gates
+   - Check CI/CD pipeline status
+   - Conduct code review (create PHASE-X-REVIEW.md)
+
+3. **Present recommendation to user:**
+   ```
+   ## PR Review: Phase X - [Title]
+
+   **Recommendation:** ✅ APPROVE / ❌ REJECT
+
+   | Gate | Status |
+   |------|--------|
+   | CI/CD | ✅ Passing |
+   | Tests | ✅ 15/15 (100%) |
+   | Code Review | ✅ 8.5/10 |
+   | Security | ✅ No issues |
+
+   **Risk Level:** Low
+
+   **User: Please confirm merge approval**
+   - Reply "approve" to merge
+   - Reply "reject" with feedback
+   ```
+
+4. **Wait for user decision**
+5. **If approved:** Merge PR, tag completion, update dashboard
+6. **If rejected:** Request changes from subagent via MASTER-NOTES.md
 
 ### **Step 7: Cleanup After PR Merge**
 

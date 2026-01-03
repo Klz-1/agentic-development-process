@@ -102,8 +102,9 @@ Tasks:
 As master orchestrator:
 - Check phase progress every 10-30 minutes
 - Provide guidance via MASTER-NOTES.md
-- Review PRs and merge when quality gates pass
-- **Clean up worktrees after PR merge** (see Step 6)
+- **Review PRs and present recommendations to user**
+- **User approves/rejects merge** (Master executes after approval)
+- Clean up worktrees after PR merge (see Step 6)
 
 ### 5. (Optional) Enable Tmux Monitoring
 
