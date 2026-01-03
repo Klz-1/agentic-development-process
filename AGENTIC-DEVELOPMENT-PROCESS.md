@@ -36,7 +36,9 @@ This process was developed independently in October 2025 through real-world prod
 10. [Setup for New Project](#setup-for-new-project)
 11. [Best Practices](#best-practices)
 12. [Templates](#templates)
-13. [Tmux Orchestration](#tmux-orchestration) *(NEW)*
+13. [Tmux Orchestration](#tmux-orchestration)
+14. [Pre-Commit Hooks](#pre-commit-hooks) *(NEW)*
+15. [Session Management](#session-management) *(NEW)*
 
 ---
 
@@ -1857,8 +1859,184 @@ git push origin develop
 
 ---
 
-**Version:** 1.0
+## Pre-Commit Hooks
+
+### **Purpose**
+
+Automatically enforce quality gates before any commit is allowed. This prevents "I'll fix it later" commits that pollute PRs and cause review cycles.
+
+### **Installation**
+
+```bash
+# Option 1: Configure git to use the hooks directory
+git config core.hooksPath githooks
+
+# Option 2: Copy hooks to .git/hooks
+cp githooks/* .git/hooks/
+chmod +x .git/hooks/*
+```
+
+### **What Gets Checked**
+
+The `pre-commit` hook enforces:
+
+| Check | Description | Blocking? |
+|-------|-------------|-----------|
+| Secrets | Scans for API keys, passwords, tokens | Yes |
+| Linting | Runs project linter (ESLint, Ruff, etc.) | Yes |
+| Tests | Runs test suite | Configurable |
+| Build | Verifies build succeeds | Yes |
+| Large Files | Warns about files >1MB | No |
+
+The `commit-msg` hook enforces:
+- Conventional Commits format: `type(scope): description`
+- Valid types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+
+### **Configuration**
+
+Create `.pre-commit-config` in your project root:
+
+```bash
+# Customize pre-commit behavior
+RUN_TESTS=true
+REQUIRE_TEST_PASS=true
+RUN_LINT=true
+RUN_BUILD=true
+CHECK_SECRETS=true
+```
+
+### **Bypassing (Not Recommended)**
+
+```bash
+# Skip hooks for emergency commits
+git commit --no-verify -m "fix: emergency hotfix"
+```
+
+**Warning:** Bypassing hooks should be rare and documented. The PR review will catch skipped checks.
+
+---
+
+## Session Management
+
+### **Purpose**
+
+Eliminate context loss between sessions. Subagents can recover full context in seconds instead of minutes.
+
+### **Session Initialization**
+
+Run at the **start** of every session:
+
+```bash
+cd .worktrees/phase-X
+./scripts/session-init.sh
+```
+
+**What it shows:**
+- Phase name, branch, progress
+- Previous session state (if saved)
+- MASTER-NOTES.md updates since last session
+- Recent commits
+- Conflict status with develop
+- Current task from PROGRESS.md
+- Uncommitted changes
+
+**Sample output:**
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                    SESSION INITIALIZATION                            ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  Phase:    phase-1
+  Branch:   feature/phase-1-foundation
+  Progress: 3/7 tasks
+
+────────────────────────────────────────────────────────────────────────
+
+Session Recovery:
+  ✓ Previous session state found
+
+  Last session summary:
+    Working on user authentication
+    Status: In progress - 80% complete
+    Next: Finish password reset flow
+
+────────────────────────────────────────────────────────────────────────
+
+Master Communications:
+  ★ NEW UPDATES in MASTER-NOTES.md - READ IMMEDIATELY
+
+────────────────────────────────────────────────────────────────────────
+
+Develop Branch Status:
+  ✓ No conflicts with develop branch
+
+────────────────────────────────────────────────────────────────────────
+
+Session initialized. Ready to work!
+```
+
+### **Session Save (Handoff)**
+
+Run at the **end** of every session:
+
+```bash
+./scripts/session-save.sh
+```
+
+**Interactive prompts:**
+- What were you working on?
+- What's the current status?
+- What should the next session do first?
+- Any blockers or concerns?
+- Any decisions made?
+
+**What gets saved:**
+- `SESSION-STATE.md` with full context
+- Session log entry in PROGRESS.md
+- Technical state (commits, uncommitted files)
+
+### **Workflow Integration**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        SESSION LIFECYCLE                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   SESSION START                                                 │
+│   ┌──────────────────────────────────────────────────────────┐ │
+│   │  ./scripts/session-init.sh                               │ │
+│   │  ↓                                                       │ │
+│   │  Review context → Check MASTER-NOTES → Start working     │ │
+│   └──────────────────────────────────────────────────────────┘ │
+│                           ↓                                     │
+│   WORKING                                                       │
+│   ┌──────────────────────────────────────────────────────────┐ │
+│   │  Implement → Test → Commit → Update PROGRESS.md          │ │
+│   │  (Pre-commit hooks enforce quality)                      │ │
+│   └──────────────────────────────────────────────────────────┘ │
+│                           ↓                                     │
+│   SESSION END                                                   │
+│   ┌──────────────────────────────────────────────────────────┐ │
+│   │  ./scripts/session-save.sh                               │ │
+│   │  ↓                                                       │ │
+│   │  Answer prompts → State saved → Ready for next session   │ │
+│   └──────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### **Best Practices**
+
+1. **Always run session-init.sh first** - Even if you think you remember context
+2. **Save state before stopping** - Even for short breaks
+3. **Be specific in handoff notes** - "Working on auth" is less useful than "Implementing password reset, token generation done, email sending next"
+4. **Note decisions made** - Future sessions need to know why choices were made
+
+---
+
+**Version:** 1.1
 **Created:** October 2025
+**Updated:** January 2026
 **License:** MIT - Use freely for any project
 
 **This is a battle-tested process for high-quality, high-velocity AI-assisted development.**

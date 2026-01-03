@@ -146,6 +146,40 @@ git worktree prune
 - **[Scripts](./scripts/)** - Automation scripts for tmux setup and monitoring
 - **[Examples](./examples/)** - Sample phase breakdowns for different project types
 
+## Automation Features
+
+### Pre-Commit Hooks
+
+Enforce quality gates automatically before every commit:
+
+```bash
+# Install hooks (choose one method)
+git config core.hooksPath githooks
+# OR
+cp githooks/* .git/hooks/ && chmod +x .git/hooks/*
+```
+
+The pre-commit hook checks:
+- No secrets/credentials in code
+- Linting passes
+- Tests pass
+- Build succeeds
+
+### Session Management
+
+**Start of session** - Instant context recovery:
+```bash
+cd .worktrees/phase-1
+../scripts/session-init.sh
+```
+
+**End of session** - Save state for next session:
+```bash
+../scripts/session-save.sh
+```
+
+This ensures zero-context starts are eliminated and handoffs are seamless.
+
 ## Core Concepts
 
 ### File-Based Communication

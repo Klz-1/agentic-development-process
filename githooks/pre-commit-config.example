@@ -1,0 +1,17 @@
+# Pre-commit hook configuration
+# Copy this file to .pre-commit-config in your project root to customize
+
+# Run tests before commit (true/false)
+RUN_TESTS=true
+
+# Require tests to pass (if false, failures are warnings only)
+REQUIRE_TEST_PASS=true
+
+# Run linter before commit
+RUN_LINT=true
+
+# Run build before commit
+RUN_BUILD=true
+
+# Check for secrets/sensitive data
+CHECK_SECRETS=true
