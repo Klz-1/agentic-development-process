@@ -43,7 +43,8 @@ find_phase_dirs() {
     local parent_dir=$(dirname "$PROJECT_DIR")
     local dirs=()
 
-    for dir in "$parent_dir"/*-phase-* "$parent_dir"/*phase* "$PROJECT_DIR/../"*-phase-*; do
+    # Check .worktrees directory (preferred location)
+    for dir in "$PROJECT_DIR/.worktrees"/phase-* "$PROJECT_DIR/.worktrees"/*; do
         if [ -d "$dir/.phase-status" ]; then
             dirs+=("$dir")
         fi
@@ -207,8 +208,8 @@ display_overview() {
         echo -e "  ${YELLOW}No phase worktrees found.${NC}"
         echo ""
         echo "  Create phase worktrees with .phase-status directories:"
-        echo "    git worktree add ../project-phase-1 -b feature/phase-1"
-        echo "    mkdir -p ../project-phase-1/.phase-status"
+        echo "    git worktree add .worktrees/phase-1 -b feature/phase-1"
+        echo "    mkdir -p .worktrees/phase-1/.phase-status"
         echo ""
         return
     fi

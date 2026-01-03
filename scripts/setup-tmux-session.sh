@@ -60,10 +60,8 @@ check_prerequisites() {
 find_phase_dirs() {
     log_info "Scanning for phase worktrees..."
 
-    # Look for directories matching *-phase-* pattern
-    parent_dir=$(dirname "$PROJECT_DIR")
-
-    for dir in "$parent_dir"/*-phase-* "$parent_dir"/*phase* "$PROJECT_DIR/../"*-phase-*; do
+    # Look for directories in .worktrees (preferred location)
+    for dir in "$PROJECT_DIR/.worktrees"/phase-* "$PROJECT_DIR/.worktrees"/*; do
         if [ -d "$dir" ] && [ -d "$dir/.phase-status" ]; then
             PHASE_DIRS+=("$dir")
             log_success "Found phase: $(basename $dir)"

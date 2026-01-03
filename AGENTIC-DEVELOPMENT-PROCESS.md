@@ -169,6 +169,7 @@ main (production-ready code)
 - Each worktree has own working directory and staging area
 - Shared git history (.git in main repo)
 - Easy context switching (cd between directories)
+- **Contained within repo** - keeps project self-contained
 
 **Initial Setup:**
 ```bash
@@ -187,79 +188,119 @@ git push -u origin main
 
 git checkout -b develop
 git push -u origin develop
+
+# Create worktrees directory (add to .gitignore)
+mkdir -p .worktrees
+echo ".worktrees/" >> .gitignore
 ```
 
 **Create Worktrees:**
 ```bash
-# Create feature branches and worktrees
-git worktree add ../project-phase-1 -b feature/phase-1-name
-git worktree add ../project-phase-2 -b feature/phase-2-name
-git worktree add ../project-phase-3 -b feature/phase-3-name
+# Create feature branches and worktrees INSIDE the repo
+git worktree add .worktrees/phase-1 -b feature/phase-1-name
+git worktree add .worktrees/phase-2 -b feature/phase-2-name
+git worktree add .worktrees/phase-3 -b feature/phase-3-name
 # ... one per phase
 
 # List all worktrees
 git worktree list
 
 # Output:
-# /path/to/your-project       [develop]
-# /path/to/project-phase-1    [feature/phase-1-name]
-# /path/to/project-phase-2    [feature/phase-2-name]
+# /path/to/your-project                    [develop]
+# /path/to/your-project/.worktrees/phase-1 [feature/phase-1-name]
+# /path/to/your-project/.worktrees/phase-2 [feature/phase-2-name]
 ```
 
 **Working with Worktrees:**
 ```bash
 # Work in Phase 1
-cd /path/to/project-phase-1
+cd .worktrees/phase-1
 # Make changes, test, commit
 git add .
 git commit -m "feat(phase-1): description"
 git push origin feature/phase-1-name
 
 # Work in Phase 2 (simultaneously!)
-cd /path/to/project-phase-2
+cd ../.worktrees/phase-2
 # No need to stash or switch branches
 ```
 
-### **Merge Workflow**
+### **Pull Request Workflow**
 
 **When Phase Complete:**
 ```bash
-# From main repo
+# Ensure branch is pushed
+cd .worktrees/phase-X
+git push origin feature/phase-X-name
+
+# Create Pull Request via GitHub CLI (or web UI)
+gh pr create --base develop --title "Phase X: Description" --body "$(cat <<'EOF'
+## Summary
+- [Brief description of what this phase implements]
+
+## Quality Gates
+- ✅ All tasks complete
+- ✅ Tests: X/X passing (100%)
+- ✅ Code review: Y/10 score
+- ✅ Integration verified
+
+## Test Evidence
+[Include test results, screenshots, or verification details]
+
+## Review
+See `.coordination/archives/phase-X/SENIOR-ENGINEER-REVIEW.md` for detailed review.
+EOF
+)"
+```
+
+**Review & Merge PR:**
+```bash
+# Master Orchestrator reviews the PR
+# - Check CI/CD passes
+# - Verify test evidence in PR description
+# - Review code changes
+# - Approve and merge via GitHub UI or:
+
+gh pr merge --squash  # or --merge for full history
+
+# Tag the completion (from main repo)
 cd /path/to/your-project
-
-# Ensure develop is current
-git checkout develop
 git pull origin develop
-
-# Merge phase (no fast-forward for clean history)
-git merge feature/phase-X-name --no-ff -m "feat: merge Phase X - Description
-
-✅ All tasks complete
-✅ Tests: X/X passing (100%)
-✅ Code review: Y/10 score
-✅ Integration verified
-
-See .coordination/PHASE-X-REVIEW.md for details"
-
-# Push to develop
-git push origin develop
-
-# Tag the completion
 git tag -a phase-X-complete -m "Phase X: Name - Complete"
 git push origin --tags
 ```
 
-### **Cleanup After Merge**
+### **Cleanup After PR Merge**
+
+**IMPORTANT: Always clean up worktrees after PR is merged to develop.**
 
 ```bash
-# Optional: Remove worktree (keep code in git history)
-git worktree remove ../project-phase-X
+# From main repo root
+cd /path/to/your-project
 
-# Or keep worktree for quick reference/hotfixes
+# 1. Remove the worktree
+git worktree remove .worktrees/phase-X
 
-# Clean up build artifacts to save space
-rm -rf /path/to/project-phase-X/node_modules
-rm -rf /path/to/project-phase-X/.next  # Or other cache directories
+# 2. Delete the remote branch (already merged)
+git push origin --delete feature/phase-X-name
+
+# 3. Prune worktree references
+git worktree prune
+
+# 4. Archive phase documentation (move from .coordination to archives)
+mv .coordination/status-reports/phase-X-status.md .coordination/archives/phase-X/
+mv .coordination/PHASE-X-SENIOR-ENGINEER-REVIEW.md .coordination/archives/phase-X/
+```
+
+**Cleanup Script (optional):**
+```bash
+#!/bin/bash
+# cleanup-phase.sh <phase-number>
+PHASE=$1
+git worktree remove .worktrees/phase-$PHASE
+git push origin --delete feature/phase-$PHASE-name
+git worktree prune
+echo "Phase $PHASE worktree cleaned up"
 ```
 
 ---
@@ -856,25 +897,31 @@ git push -u origin main
 
 git checkout -b develop
 git push -u origin develop
+
+# 6. Create worktrees directory (add to .gitignore)
+mkdir -p .worktrees
+echo ".worktrees/" >> .gitignore
+git add .gitignore
+git commit -m "chore: add .worktrees to gitignore"
 ```
 
 ### **Step 3: Create First Phase Worktree**
 
 ```bash
-# Create Phase 1 worktree
-git worktree add ../project-phase-1 -b feature/phase-1-foundation
+# Create Phase 1 worktree INSIDE the repo
+git worktree add .worktrees/phase-1 -b feature/phase-1-foundation
 
 # Set up communication in worktree
-mkdir -p ../project-phase-1/.phase-status
+mkdir -p .worktrees/phase-1/.phase-status
 
 # Copy template and customize
 cp .coordination/MASTER-NOTES-TEMPLATE.md \
-   ../project-phase-1/.phase-status/MASTER-NOTES.md
+   .worktrees/phase-1/.phase-status/MASTER-NOTES.md
 
 # Edit MASTER-NOTES.md with Phase 1 specific guidance
 
 # Commit setup
-cd ../project-phase-1
+cd .worktrees/phase-1
 git add .phase-status/
 git commit -m "feat(phase-1): set up communication"
 git push -u origin feature/phase-1-foundation
@@ -919,17 +966,39 @@ Let's start with task X.1 - [description].
 - Answer questions in QUESTIONS.md
 - Help with blockers
 
-### **Step 6: Review & Merge**
+### **Step 6: Review & Merge via PR**
 
 **When phase complete:**
-1. Read .phase-status/COMPLETED.md
+1. Read `.worktrees/phase-X/.phase-status/COMPLETED.md`
 2. Verify test evidence
 3. Conduct code review (create PHASE-X-REVIEW.md)
-4. Discuss with user
-5. Merge to develop if approved
-6. Tag completion
-7. Update master dashboard
-8. Create next phase worktree (if any)
+4. Subagent creates Pull Request to develop
+5. Review PR, verify CI passes
+6. Merge PR if approved
+7. Tag completion
+8. Update master dashboard
+
+### **Step 7: Cleanup After PR Merge**
+
+**After PR is merged to develop:**
+```bash
+# 1. Remove the worktree
+git worktree remove .worktrees/phase-X
+
+# 2. Delete remote branch (already merged via PR)
+git push origin --delete feature/phase-X-name
+
+# 3. Prune worktree references
+git worktree prune
+
+# 4. Archive documentation
+mkdir -p .coordination/archives/phase-X
+mv .coordination/status-reports/phase-X-status.md .coordination/archives/phase-X/
+mv .coordination/PHASE-X-SENIOR-ENGINEER-REVIEW.md .coordination/archives/phase-X/
+
+# 5. Create next phase worktree (if any)
+git worktree add .worktrees/phase-Y -b feature/phase-Y-name
+```
 
 ---
 

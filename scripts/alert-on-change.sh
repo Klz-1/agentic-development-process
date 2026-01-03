@@ -72,7 +72,8 @@ find_phase_dirs() {
     local dirs=()
 
     # Look for phase directories
-    for dir in "$parent_dir"/*-phase-* "$parent_dir"/*phase* "$PROJECT_DIR/../"*-phase-*; do
+    # Check .worktrees directory first (preferred location)
+    for dir in "$PROJECT_DIR/.worktrees"/phase-* "$PROJECT_DIR/.worktrees"/*; do
         if [ -d "$dir/.phase-status" ]; then
             dirs+=("$dir/.phase-status")
         fi

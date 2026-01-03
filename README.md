@@ -67,16 +67,20 @@ touch .coordination/SUBAGENT-GUIDELINES.md
 touch .coordination/COMMIT-WORKFLOW.md
 
 # Copy templates from templates/ directory
+
+# Create worktrees directory (add to .gitignore)
+mkdir -p .worktrees
+echo ".worktrees/" >> .gitignore
 ```
 
 ### 2. Create Phase Worktrees
 
 ```bash
-# Create a worktree for Phase 1
-git worktree add ../project-phase-1 -b feature/phase-1-foundation
+# Create a worktree for Phase 1 INSIDE the repo
+git worktree add .worktrees/phase-1 -b feature/phase-1-foundation
 
 # Set up communication
-mkdir -p ../project-phase-1/.phase-status
+mkdir -p .worktrees/phase-1/.phase-status
 ```
 
 ### 3. Launch Subagent
@@ -98,7 +102,8 @@ Tasks:
 As master orchestrator:
 - Check phase progress every 10-30 minutes
 - Provide guidance via MASTER-NOTES.md
-- Review and merge when quality gates pass
+- Review PRs and merge when quality gates pass
+- **Clean up worktrees after PR merge** (see Step 6)
 
 ### 5. (Optional) Enable Tmux Monitoring
 
@@ -113,6 +118,15 @@ tmux attach -t agentic-dev
 ```
 
 See [TMUX-ORCHESTRATION.md](./TMUX-ORCHESTRATION.md) for the complete guide.
+
+### 6. Cleanup After PR Merge
+
+```bash
+# After PR is merged to develop, clean up the worktree
+git worktree remove .worktrees/phase-1
+git push origin --delete feature/phase-1-foundation
+git worktree prune
+```
 
 ## Documentation
 

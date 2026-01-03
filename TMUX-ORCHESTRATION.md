@@ -231,7 +231,7 @@ tmux send-keys -t agentic-dev:dashboard.2 './scripts/alert-on-change.sh' Enter
 
 # 3. Create phase windows (repeat for each phase)
 tmux new-window -t agentic-dev -n phase-1
-tmux send-keys -t agentic-dev:phase-1 'cd /path/to/project-phase-1' Enter
+tmux send-keys -t agentic-dev:phase-1 'cd .worktrees/phase-1' Enter
 
 # Split for progress monitoring
 tmux split-window -t agentic-dev:phase-1 -v -p 30
@@ -289,11 +289,11 @@ Use inotifywait (Linux) or fswatch (macOS) for instant alerts.
 # Linux - Watch for key file changes
 inotifywait -m -r -e create,modify,delete \
   --include '(BLOCKERS|COMPLETED|QUESTIONS)\.md$' \
-  /path/to/project-phase-*/.phase-status/
+  .worktrees/phase-*/.phase-status/
 
 # macOS - Same with fswatch
 fswatch -r --include='(BLOCKERS|COMPLETED|QUESTIONS)\.md$' \
-  /path/to/project-phase-*/.phase-status/
+  .worktrees/phase-*/.phase-status/
 ```
 
 ### **Strategy 4: Test Output Streaming**
@@ -327,7 +327,7 @@ tail -f test-output.log
 #!/bin/bash
 # alert-on-change.sh
 
-WATCH_DIRS="/path/to/project-phase-*/.phase-status"
+WATCH_DIRS=".worktrees/phase-*/.phase-status"
 
 echo "🔔 Alert Monitor Started"
 echo "Watching: $WATCH_DIRS"
@@ -532,12 +532,12 @@ Spawn new Claude instances directly in phase windows:
 
 ```bash
 # Create new phase worktree
-git worktree add ../project-phase-3 -b feature/phase-3-name
-mkdir -p ../project-phase-3/.phase-status
+git worktree add .worktrees/phase-3 -b feature/phase-3-name
+mkdir -p .worktrees/phase-3/.phase-status
 
 # Create new tmux window
 tmux new-window -t agentic-dev -n phase-3
-tmux send-keys -t agentic-dev:phase-3 'cd /path/to/project-phase-3' Enter
+tmux send-keys -t agentic-dev:phase-3 'cd .worktrees/phase-3' Enter
 
 # Split and set up monitoring
 tmux split-window -t agentic-dev:phase-3 -v -p 30
@@ -559,7 +559,7 @@ Run builds across all phases and monitor:
 #!/bin/bash
 # sync-build-all.sh
 
-for phase in /path/to/project-phase-*; do
+for phase in .worktrees/phase-*; do
   phase_name=$(basename $phase)
   tmux send-keys -t agentic-dev:$phase_name.0 'npm run build 2>&1 | tee build.log' Enter
 done
@@ -577,7 +577,7 @@ Enable test watch mode with output streaming:
 npm test -- --watch 2>&1 | tee -a test-watch.log
 
 # Monitor from another pane or dashboard
-tail -f /path/to/project-phase-X/test-watch.log
+tail -f .worktrees/phase-X/test-watch.log
 ```
 
 ### **Pattern 4: Git Activity Aggregation**
@@ -594,7 +594,7 @@ while true; do
   echo "=============================="
   echo ""
 
-  for phase in /path/to/project-phase-*; do
+  for phase in .worktrees/phase-*; do
     phase_name=$(basename $phase)
     echo "📁 $phase_name:"
     cd $phase
@@ -619,7 +619,7 @@ METRICS_FILE="/path/to/project/docs/METRICS.log"
 while true; do
   timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-  for phase in /path/to/project-phase-*; do
+  for phase in .worktrees/phase-*; do
     phase_name=$(basename $phase)
     progress_file="$phase/.phase-status/PROGRESS.md"
 
