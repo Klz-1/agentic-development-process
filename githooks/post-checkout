@@ -1,0 +1,84 @@
+#!/bin/bash
+#
+# post-checkout hook
+# Automatically runs session-init when switching branches or checking out
+#
+# This hook is called after:
+#   - git checkout
+#   - git switch
+#   - git clone (initial checkout)
+#
+# Arguments:
+#   $1 - ref of previous HEAD
+#   $2 - ref of new HEAD
+#   $3 - flag: 1 = branch checkout, 0 = file checkout
+#
+
+PREV_HEAD="$1"
+NEW_HEAD="$2"
+CHECKOUT_TYPE="$3"
+
+# Only run on branch checkouts, not file checkouts
+if [ "$CHECKOUT_TYPE" != "1" ]; then
+    exit 0
+fi
+
+# Colors
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+DIM='\033[2m'
+
+# Check if this is a phase worktree (has .phase-status directory)
+if [ -d ".phase-status" ]; then
+    echo ""
+    echo -e "${CYAN}══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}         AUTOMATIC SESSION INITIALIZATION                     ${NC}"
+    echo -e "${CYAN}══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+
+    # Find the session-init script
+    SCRIPT_LOCATIONS=(
+        "./scripts/session-init.sh"
+        "../scripts/session-init.sh"
+        "../../scripts/session-init.sh"
+    )
+
+    INIT_SCRIPT=""
+    for loc in "${SCRIPT_LOCATIONS[@]}"; do
+        if [ -x "$loc" ]; then
+            INIT_SCRIPT="$loc"
+            break
+        fi
+    done
+
+    if [ -n "$INIT_SCRIPT" ]; then
+        echo -e "${GREEN}Running session-init.sh automatically...${NC}"
+        echo ""
+        "$INIT_SCRIPT" "$(pwd)"
+    else
+        # Fallback: show basic context info
+        echo -e "${YELLOW}session-init.sh not found, showing basic context:${NC}"
+        echo ""
+        echo -e "  ${CYAN}Branch:${NC} $(git branch --show-current)"
+        echo -e "  ${CYAN}Phase:${NC}  $(basename $(pwd))"
+        echo ""
+
+        if [ -f ".phase-status/SESSION-STATE.md" ]; then
+            echo -e "${GREEN}Previous session state found:${NC}"
+            head -20 ".phase-status/SESSION-STATE.md" | sed 's/^/  /'
+            echo ""
+        fi
+
+        if [ -f ".phase-status/MASTER-NOTES.md" ]; then
+            echo -e "${YELLOW}Remember to check MASTER-NOTES.md for updates${NC}"
+        fi
+    fi
+
+    echo ""
+    echo -e "${DIM}(Auto-triggered by post-checkout hook)${NC}"
+    echo ""
+fi
+
+exit 0

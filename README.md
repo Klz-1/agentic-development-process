@@ -167,18 +167,29 @@ The pre-commit hook checks:
 
 ### Session Management
 
-**Start of session** - Instant context recovery:
+**Automatic mode with Claude Hooks (recommended):**
+
 ```bash
-cd .worktrees/phase-1
-../scripts/session-init.sh
+# Copy hooks to your project
+mkdir -p .claude/hooks
+cp hooks/session-start.sh .claude/hooks/
+cp hooks/session-end.sh .claude/hooks/
+chmod +x .claude/hooks/*.sh
+
+# Add to .claude/settings.json (see templates/claude-settings.json)
 ```
 
-**End of session** - Save state for next session:
+With Claude hooks enabled:
+- **SessionStart** → Auto-shows phase context when Claude session begins
+- **Stop** → Auto-saves session state when Claude finishes responding
+
+**Manual mode:**
 ```bash
-../scripts/session-save.sh
+./scripts/session-init.sh    # Start of session
+./scripts/session-save.sh    # End of session
 ```
 
-This ensures zero-context starts are eliminated and handoffs are seamless.
+Zero manual commands needed - session state is preserved automatically!
 
 ## Core Concepts
 

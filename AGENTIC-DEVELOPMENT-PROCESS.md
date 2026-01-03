@@ -2032,9 +2032,101 @@ Run at the **end** of every session:
 3. **Be specific in handoff notes** - "Working on auth" is less useful than "Implementing password reset, token generation done, email sending next"
 4. **Note decisions made** - Future sessions need to know why choices were made
 
+### **Automatic Session Hooks**
+
+For fully automatic session management, use Claude Code hooks:
+
+**Option 1: Claude Code Hooks (Recommended)**
+
+Copy hooks to your project:
+
+```bash
+mkdir -p .claude/hooks
+cp hooks/session-start.sh .claude/hooks/
+cp hooks/session-end.sh .claude/hooks/
+chmod +x .claude/hooks/*.sh
+```
+
+Add to `.claude/settings.json` (see `templates/claude-settings.json`):
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "*",
+      "hooks": [{
+        "type": "command",
+        "command": ".claude/hooks/session-start.sh",
+        "timeout": 30
+      }]
+    }],
+    "Stop": [{
+      "matcher": "*",
+      "hooks": [{
+        "type": "command",
+        "command": ".claude/hooks/session-end.sh",
+        "timeout": 10
+      }]
+    }]
+  }
+}
+```
+
+This enables:
+- **SessionStart**: Auto-shows phase context when Claude session begins
+- **Stop**: Auto-saves session state when Claude finishes responding
+
+**Option 2: Git Hooks**
+
+For non-Claude workflows or additional automation:
+
+```bash
+git config core.hooksPath githooks
+```
+
+This enables:
+- `post-checkout`: Auto-runs `session-init.sh` when switching branches
+- `pre-push`: Auto-saves session state before pushing
+
+**Option 3: Shell/Tmux Hooks**
+
+Additional integrations available:
+- `scripts/shell-hooks.sh` - Exit traps and cd hooks for bash/zsh
+- `scripts/tmux-hooks.sh` - Auto-save when tmux panes close
+
+**Automatic Workflow with Claude Hooks:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│               AUTOMATIC SESSION LIFECYCLE (Claude)              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   Start Claude Code session                                     │
+│        ↓                                                        │
+│   [SessionStart hook] → Phase context fed to Claude             │
+│        ↓                                                        │
+│   Claude knows:                                                 │
+│   • Previous session state                                      │
+│   • Current task                                                │
+│   • MASTER-NOTES updates                                        │
+│   • Uncommitted changes                                         │
+│        ↓                                                        │
+│   Work with Claude... implement... test...                      │
+│        ↓                                                        │
+│   Claude finishes responding                                    │
+│        ↓                                                        │
+│   [Stop hook] → Session state auto-saved                        │
+│                                                                 │
+│   Next session: SessionStart provides full context              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**No manual commands needed!** Claude receives context automatically and state is preserved.
+
 ---
 
-**Version:** 1.1
+**Version:** 1.3
 **Created:** October 2025
 **Updated:** January 2026
 **License:** MIT - Use freely for any project
