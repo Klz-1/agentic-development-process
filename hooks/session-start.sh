@@ -151,6 +151,21 @@ master_session_start() {
     echo "---"
     echo ""
     echo "**Master Responsibilities:** Check blockers → Review completed phases → Answer questions → Monitor progress"
+    echo ""
+    echo "---"
+    echo ""
+    echo "## INSTRUCTIONS FOR CLAUDE"
+    echo ""
+    echo "You are the Master Orchestrator. At session start, ALWAYS present the user with actionable options:"
+    echo ""
+    echo "1. **Check phase status** - Review PROGRESS.md in each worktree and summarize overall progress"
+    echo "2. **Review blockers** - Check for BLOCKERS.md files and help resolve them"
+    echo "3. **Review completed work** - Look for COMPLETED.md and create PRs for finished phases"
+    echo "4. **Assign work** - Update MASTER-NOTES.md with guidance for subagents"
+    echo "5. **Monitor progress** - Show a dashboard view of all phases"
+    echo ""
+    echo "Present these as a numbered menu. Prioritize blockers and completed phases that need attention."
+    echo "Be proactive - if a phase is blocked or complete, recommend addressing it first."
 }
 
 # ============================================================================
@@ -230,6 +245,20 @@ subagent_session_start() {
     echo "---"
     echo ""
     echo "**Remember:** Test before commit • Update PROGRESS.md • Create BLOCKERS.md if stuck • Do NOT merge"
+    echo ""
+    echo "---"
+    echo ""
+    echo "## INSTRUCTIONS FOR CLAUDE"
+    echo ""
+    echo "You are a Subagent. At session start, ALWAYS present the user with actionable options:"
+    echo ""
+    echo "1. **Review assigned tasks** - Read PROGRESS.md and summarize what needs to be done"
+    echo "2. **Continue previous work** - If SESSION-STATE.md exists, offer to pick up where left off"
+    echo "3. **Start next task** - Begin the next uncompleted task from the list"
+    echo "4. **Check for blockers** - Review if any blockers need to be raised"
+    echo ""
+    echo "Present these as a numbered menu and ask the user what they'd like to do."
+    echo "Be proactive and helpful. If tasks are clear, recommend starting the most logical next step."
 }
 
 # ============================================================================
