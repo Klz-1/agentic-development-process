@@ -69,13 +69,13 @@
 cat docs/PROGRESS.md
 
 # 2. Check active phase
-cat /path/to/project-phase-X/.phase-status/PROGRESS.md
+cat .worktrees/phase-X/.phase-status/PROGRESS.md
 
 # 3. Review recent commits
 git log develop --oneline -10
 
 # 4. Check for blockers
-cat /path/to/project-phase-X/.phase-status/BLOCKERS.md
+cat .worktrees/phase-X/.phase-status/BLOCKERS.md
 ```
 
 ### Continue From

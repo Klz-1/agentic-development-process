@@ -59,28 +59,41 @@ The main document (`AGENTIC-DEVELOPMENT-PROCESS.md`) is designed to be used as a
 
 ```bash
 # Clone or copy the agentic-development-process repo
-git clone https://github.com/user/agentic-development-process.git /tmp/adp
+# Replace <org> with actual GitHub org/user
+git clone https://github.com/<org>/agentic-development-process.git /tmp/adp
 
 # Create coordination structure
 mkdir -p .coordination/status-reports .coordination/archives docs
 
-# Copy templates (explicit commands)
+# Copy templates TO your project (these are static reference docs)
 cp /tmp/adp/templates/SUBAGENT-GUIDELINES.md .coordination/
 cp /tmp/adp/templates/COMMIT-WORKFLOW.md .coordination/
+
+# Initialize master dashboard
 cp /tmp/adp/templates/PROGRESS-TEMPLATE.md docs/PROGRESS.md
-cp /tmp/adp/templates/MASTER-NOTES-TEMPLATE.md .coordination/
-cp /tmp/adp/templates/SESSION-SUMMARY-TEMPLATE.md .coordination/
-cp /tmp/adp/templates/PR-REVIEW-TEMPLATE.md .coordination/
 
 # Create worktrees directory (add to .gitignore)
 mkdir -p .worktrees
 echo ".worktrees/" >> .gitignore
 
+# Install pre-commit hooks (quality gates)
+mkdir -p .git/hooks
+cp /tmp/adp/githooks/pre-commit .git/hooks/
+cp /tmp/adp/githooks/commit-msg .git/hooks/
+chmod +x .git/hooks/*
+
+# Install Claude Code hooks (session management)
+mkdir -p .claude/hooks
+cp /tmp/adp/hooks/session-start.sh .claude/hooks/
+cp /tmp/adp/hooks/session-end.sh .claude/hooks/
+chmod +x .claude/hooks/*
+cp /tmp/adp/templates/claude-settings.json .claude/settings.json
+
 # Clean up
 rm -rf /tmp/adp
 ```
 
-**Alternative: Copy templates manually from the `templates/` directory in this repo.**
+**Note:** Templates like `BLOCKERS-TEMPLATE.md`, `COMPLETED-TEMPLATE.md`, `QUESTIONS-TEMPLATE.md` are **reference templates** - subagents use them as guides when creating those files, they're not copied to your project.
 
 ### 2. Create Phase Worktrees
 

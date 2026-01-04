@@ -518,7 +518,7 @@ your-project/
 ### **Phase Worktree Structure**
 
 ```
-project-phase-X/
+.worktrees/phase-X/
 ├── .phase-status/             # Agent communication
 │   ├── README.md              # Communication protocol
 │   ├── MASTER-NOTES.md        # Guidance from master
@@ -921,13 +921,13 @@ cd /path/to/your-project
 cat docs/PROGRESS.md
 
 # 2. Check active phase (1 minute)
-cat /path/to/project-phase-X/.phase-status/PROGRESS.md
+cat .worktrees/phase-X/.phase-status/PROGRESS.md
 
 # 3. Review recent commits (1 minute)
 git log develop --oneline -10
 
 # 4. Check for blockers (1 minute)
-cat /path/to/project-phase-X/.phase-status/BLOCKERS.md 2>/dev/null
+cat .worktrees/phase-X/.phase-status/BLOCKERS.md 2>/dev/null
 
 # DONE - You're synced!
 ```
@@ -1635,11 +1635,11 @@ The `alert-on-change.sh` script monitors for:
 # Phase 2 and Phase 3 independent? Work simultaneously!
 
 # Terminal 1: Phase 2 agent
-cd /path/to/project-phase-2
+cd .worktrees/phase-2
 # Agent works on Phase 2
 
 # Terminal 2: Phase 3 agent
-cd /path/to/project-phase-3
+cd .worktrees/phase-3
 # Agent works on Phase 3
 
 # Both can be active, merge when ready
