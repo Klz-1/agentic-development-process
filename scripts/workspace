@@ -148,7 +148,7 @@ create_workspace() {
     log_success "master window"
 
     # Enable mouse mode
-    tmux set -g mouse on -t "$SESSION_NAME"
+    tmux set-option -t "$SESSION_NAME" mouse on
     log_success "Mouse mode enabled"
 
     # Go to dashboard
@@ -158,33 +158,33 @@ create_workspace() {
 setup_dashboard() {
     local dash="$SESSION_NAME:dashboard"
 
-    # Pane 0: Master notes
+    # Pane 0 (top-left): Progress from all phases - already active from session creation
     if command -v watch &> /dev/null; then
-        tmux send-keys -t "$dash" "watch -n 5 -c 'echo -e \"\\033[1;33m═══ MASTER NOTES ═══\\033[0m\"; head -35 MASTER-NOTES.md 2>/dev/null || echo \"No MASTER-NOTES.md\"'" Enter
+        tmux send-keys -t "$dash" "watch -n 3 -c 'echo -e \"\\033[1;33m═══ PROGRESS ═══\\033[0m\"; for p in .worktrees/*/; do name=\$(basename \$p); echo -e \"\\n\\033[1;32m\$name\\033[0m\"; head -25 \$p/.phase-status/PROGRESS.md 2>/dev/null | tail -20 || echo \"  (no progress file)\"; done'" Enter
     else
-        tmux send-keys -t "$dash" "cat MASTER-NOTES.md 2>/dev/null || echo 'No MASTER-NOTES.md'" Enter
+        tmux send-keys -t "$dash" "for p in .worktrees/*/; do echo \$(basename \$p); cat \$p/.phase-status/PROGRESS.md 2>/dev/null | head -20; done" Enter
     fi
 
-    # Split right: Phase status
+    # Pane 1 (top-right): Phase status
     tmux split-window -h -t "$dash" -c "$PROJECT_DIR"
     if command -v watch &> /dev/null; then
         tmux send-keys "watch -n 3 -c 'echo -e \"\\033[1;36m═══ PHASE STATUS ═══\\033[0m\"; for p in .worktrees/*/; do name=\$(basename \$p); status=\$(grep -E \"^\\*\\*Status\" \$p/.phase-status/PROGRESS.md 2>/dev/null | head -1); echo -e \"\\n\\033[1;32m\$name\\033[0m\"; echo \"\$status\"; done'" Enter
     fi
 
-    # Split bottom-left: File watcher
-    tmux select-pane -t "$dash.0"
+    # Pane 2 (bottom-right): Git activity - split current pane vertically
+    tmux split-window -v -c "$PROJECT_DIR"
+    if command -v watch &> /dev/null; then
+        tmux send-keys "watch -n 10 -c 'echo -e \"\\033[1;34m═══ RECENT COMMITS ═══\\033[0m\"; for p in .worktrees/*/; do name=\$(basename \$p); echo -e \"\\n\\033[32m\$name\\033[0m\"; git -C \$p log --oneline -2 2>/dev/null || echo \"  (none)\"; done'" Enter
+    fi
+
+    # Pane 3 (bottom-left): File watcher - split the first pane
+    tmux select-pane -L
+    tmux select-pane -L 2>/dev/null || true
     tmux split-window -v -c "$PROJECT_DIR"
     if command -v fswatch &> /dev/null; then
         tmux send-keys "echo -e '\\033[1;35m═══ FILE WATCHER ═══\\033[0m'; echo 'Monitoring .phase-status/ for changes...'; echo ''; fswatch --event Created --event Updated .worktrees/*/.phase-status/ 2>/dev/null | while read f; do echo -e \"\\033[33m[\$(date +%H:%M:%S)]\\033[0m \$(basename \$f)\"; done" Enter
     else
-        tmux send-keys "echo 'File watcher: fswatch not installed'" Enter
-    fi
-
-    # Split bottom-right: Git activity
-    tmux select-pane -t "$dash.1"
-    tmux split-window -v -c "$PROJECT_DIR"
-    if command -v watch &> /dev/null; then
-        tmux send-keys "watch -n 10 -c 'echo -e \"\\033[1;34m═══ RECENT COMMITS ═══\\033[0m\"; for p in .worktrees/*/; do name=\$(basename \$p); echo -e \"\\n\\033[32m\$name\\033[0m\"; git -C \$p log --oneline -2 2>/dev/null || echo \"  (none)\"; done'" Enter
+        tmux send-keys "echo -e '\\033[1;35m═══ FILE WATCHER ═══\\033[0m'; echo 'fswatch not installed'" Enter
     fi
 
     log_success "Dashboard (4 panes)"
