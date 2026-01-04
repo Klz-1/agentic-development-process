@@ -1,0 +1,290 @@
+#!/bin/bash
+#
+# workspace - Agentic Development Workspace Launcher
+#
+# Usage: ./workspace [project-dir]
+#
+# Starts or continues a tmux workspace for agentic development.
+# Automatically detects phases and creates monitoring dashboard.
+#
+
+set -e
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
+PROJECT_DIR="${1:-$(pwd)}"
+PROJECT_NAME=$(basename "$PROJECT_DIR")
+SESSION_NAME="${PROJECT_NAME}"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+# ============================================================================
+# HELPERS
+# ============================================================================
+
+print_banner() {
+    echo -e "${CYAN}"
+    echo "╔═══════════════════════════════════════════════════════════════╗"
+    echo "║           🚀 AGENTIC DEVELOPMENT WORKSPACE 🚀                 ║"
+    echo "╚═══════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+}
+
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[✓]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[!]${NC} $1"; }
+log_error() { echo -e "${RED}[✗]${NC} $1"; }
+
+# ============================================================================
+# PREREQUISITES
+# ============================================================================
+
+check_prerequisites() {
+    local missing=0
+
+    if ! command -v tmux &> /dev/null; then
+        log_error "tmux not found. Install: brew install tmux"
+        missing=1
+    fi
+
+    if ! command -v watch &> /dev/null; then
+        log_warn "watch not found. Install: brew install watch"
+        log_warn "Dashboard auto-refresh will be limited."
+    fi
+
+    if ! command -v fswatch &> /dev/null && [[ "$OSTYPE" == "darwin"* ]]; then
+        log_warn "fswatch not found. Install: brew install fswatch"
+        log_warn "File change alerts will be disabled."
+    fi
+
+    if [ $missing -eq 1 ]; then
+        exit 1
+    fi
+}
+
+# ============================================================================
+# SESSION DETECTION
+# ============================================================================
+
+session_exists() {
+    tmux has-session -t "$SESSION_NAME" 2>/dev/null
+}
+
+get_session_info() {
+    if session_exists; then
+        local windows=$(tmux list-windows -t "$SESSION_NAME" 2>/dev/null | wc -l | tr -d ' ')
+        local created=$(tmux display-message -t "$SESSION_NAME" -p '#{session_created}' 2>/dev/null)
+        local created_date=$(date -r "$created" '+%Y-%m-%d %H:%M' 2>/dev/null || echo "unknown")
+        echo "$windows windows, created $created_date"
+    fi
+}
+
+# ============================================================================
+# PHASE DETECTION
+# ============================================================================
+
+find_phases() {
+    local phases=()
+
+    # Check .worktrees directory
+    if [ -d "$PROJECT_DIR/.worktrees" ]; then
+        for dir in "$PROJECT_DIR/.worktrees"/*/; do
+            if [ -d "$dir" ]; then
+                phases+=("$dir")
+            fi
+        done
+    fi
+
+    echo "${phases[@]}"
+}
+
+get_phase_status() {
+    local phase_dir="$1"
+    local progress_file="$phase_dir/.phase-status/PROGRESS.md"
+
+    if [ -f "$progress_file" ]; then
+        grep -E "^\*\*Status:\*\*" "$progress_file" 2>/dev/null | sed 's/\*\*Status:\*\* //' | head -1
+    else
+        echo "No status"
+    fi
+}
+
+# ============================================================================
+# WORKSPACE CREATION
+# ============================================================================
+
+create_workspace() {
+    log_info "Creating workspace: $SESSION_NAME"
+
+    local phases=($(find_phases))
+
+    # Create session with dashboard
+    tmux new-session -d -s "$SESSION_NAME" -n "dashboard" -c "$PROJECT_DIR"
+
+    # Dashboard layout
+    setup_dashboard
+
+    # Create phase windows
+    for phase_dir in "${phases[@]}"; do
+        local phase_name=$(basename "$phase_dir")
+        tmux new-window -t "$SESSION_NAME" -n "$phase_name" -c "$phase_dir"
+        tmux send-keys -t "$SESSION_NAME:$phase_name" "clear && echo -e '${BOLD}${CYAN}═══ $phase_name ═══${NC}' && echo '' && echo 'Start subagent: claude' && echo ''" Enter
+        log_success "$phase_name window"
+    done
+
+    # Master window
+    tmux new-window -t "$SESSION_NAME" -n "master" -c "$PROJECT_DIR"
+    tmux send-keys -t "$SESSION_NAME:master" "clear && echo -e '${BOLD}${YELLOW}═══ MASTER ORCHESTRATOR ═══${NC}' && echo '' && echo 'Start orchestrator: claude' && echo ''" Enter
+    log_success "master window"
+
+    # Enable mouse mode
+    tmux set -g mouse on -t "$SESSION_NAME"
+    log_success "Mouse mode enabled"
+
+    # Go to dashboard
+    tmux select-window -t "$SESSION_NAME:dashboard"
+}
+
+setup_dashboard() {
+    local dash="$SESSION_NAME:dashboard"
+
+    # Pane 0: Master notes
+    if command -v watch &> /dev/null; then
+        tmux send-keys -t "$dash" "watch -n 5 -c 'echo -e \"\\033[1;33m═══ MASTER NOTES ═══\\033[0m\"; head -35 MASTER-NOTES.md 2>/dev/null || echo \"No MASTER-NOTES.md\"'" Enter
+    else
+        tmux send-keys -t "$dash" "cat MASTER-NOTES.md 2>/dev/null || echo 'No MASTER-NOTES.md'" Enter
+    fi
+
+    # Split right: Phase status
+    tmux split-window -h -t "$dash" -c "$PROJECT_DIR"
+    if command -v watch &> /dev/null; then
+        tmux send-keys "watch -n 3 -c 'echo -e \"\\033[1;36m═══ PHASE STATUS ═══\\033[0m\"; for p in .worktrees/*/; do name=\$(basename \$p); status=\$(grep -E \"^\\*\\*Status\" \$p/.phase-status/PROGRESS.md 2>/dev/null | head -1); echo -e \"\\n\\033[1;32m\$name\\033[0m\"; echo \"\$status\"; done'" Enter
+    fi
+
+    # Split bottom-left: File watcher
+    tmux select-pane -t "$dash.0"
+    tmux split-window -v -c "$PROJECT_DIR"
+    if command -v fswatch &> /dev/null; then
+        tmux send-keys "echo -e '\\033[1;35m═══ FILE WATCHER ═══\\033[0m'; echo 'Monitoring .phase-status/ for changes...'; echo ''; fswatch --event Created --event Updated .worktrees/*/.phase-status/ 2>/dev/null | while read f; do echo -e \"\\033[33m[\$(date +%H:%M:%S)]\\033[0m \$(basename \$f)\"; done" Enter
+    else
+        tmux send-keys "echo 'File watcher: fswatch not installed'" Enter
+    fi
+
+    # Split bottom-right: Git activity
+    tmux select-pane -t "$dash.1"
+    tmux split-window -v -c "$PROJECT_DIR"
+    if command -v watch &> /dev/null; then
+        tmux send-keys "watch -n 10 -c 'echo -e \"\\033[1;34m═══ RECENT COMMITS ═══\\033[0m\"; for p in .worktrees/*/; do name=\$(basename \$p); echo -e \"\\n\\033[32m\$name\\033[0m\"; git -C \$p log --oneline -2 2>/dev/null || echo \"  (none)\"; done'" Enter
+    fi
+
+    log_success "Dashboard (4 panes)"
+}
+
+# ============================================================================
+# USER PROMPTS
+# ============================================================================
+
+prompt_existing_session() {
+    echo ""
+    echo -e "${BOLD}Existing workspace found:${NC} $SESSION_NAME"
+    echo -e "${CYAN}$(get_session_info)${NC}"
+    echo ""
+    echo "  1) ${GREEN}Continue${NC} - Attach to existing session"
+    echo "  2) ${YELLOW}Reset${NC}    - Kill and recreate workspace"
+    echo "  3) ${BLUE}Status${NC}   - Show status without attaching"
+    echo "  4) ${RED}Cancel${NC}   - Exit"
+    echo ""
+    read -p "Choice [1]: " choice
+    choice="${choice:-1}"
+
+    case $choice in
+        1)
+            attach_workspace
+            ;;
+        2)
+            log_info "Killing existing session..."
+            tmux kill-session -t "$SESSION_NAME"
+            create_workspace
+            attach_workspace
+            ;;
+        3)
+            show_status
+            ;;
+        4)
+            log_info "Cancelled"
+            exit 0
+            ;;
+        *)
+            log_error "Invalid choice"
+            exit 1
+            ;;
+    esac
+}
+
+show_status() {
+    echo ""
+    echo -e "${BOLD}Workspace Status: $SESSION_NAME${NC}"
+    echo ""
+
+    echo -e "${CYAN}Windows:${NC}"
+    tmux list-windows -t "$SESSION_NAME" 2>/dev/null | while read line; do
+        echo "  $line"
+    done
+
+    echo ""
+    echo -e "${CYAN}Phase Status:${NC}"
+    for phase_dir in $(find_phases); do
+        local name=$(basename "$phase_dir")
+        local status=$(get_phase_status "$phase_dir")
+        echo -e "  ${GREEN}$name${NC}: $status"
+    done
+
+    echo ""
+    echo -e "Attach with: ${BOLD}tmux attach -t $SESSION_NAME${NC}"
+}
+
+attach_workspace() {
+    log_success "Attaching to workspace..."
+    echo ""
+    exec tmux attach -t "$SESSION_NAME"
+}
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+main() {
+    print_banner
+
+    # Validate project
+    if [ ! -d "$PROJECT_DIR/.worktrees" ] && [ ! -f "$PROJECT_DIR/MASTER-NOTES.md" ]; then
+        log_error "Not an agentic project: $PROJECT_DIR"
+        log_info "Missing .worktrees/ directory or MASTER-NOTES.md"
+        exit 1
+    fi
+
+    check_prerequisites
+
+    echo -e "${BOLD}Project:${NC} $PROJECT_NAME"
+    echo -e "${BOLD}Path:${NC} $PROJECT_DIR"
+    echo ""
+
+    if session_exists; then
+        prompt_existing_session
+    else
+        create_workspace
+        attach_workspace
+    fi
+}
+
+main "$@"
