@@ -258,7 +258,7 @@ gh pr create --base develop --title "Phase X: Description" --body "$(cat <<'EOF'
 [Include test results, screenshots, or verification details]
 
 ## Review
-See `.coordination/archives/phase-X/SENIOR-ENGINEER-REVIEW.md` for detailed review.
+See `.coordination/archives/phase-X/PR-REVIEW.md` for detailed review.
 EOF
 )"
 ```
@@ -465,7 +465,7 @@ git worktree prune
 
 # 4. Archive phase documentation (move from .coordination to archives)
 mv .coordination/status-reports/phase-X-status.md .coordination/archives/phase-X/
-mv .coordination/PHASE-X-SENIOR-ENGINEER-REVIEW.md .coordination/archives/phase-X/
+mv .coordination/PHASE-X-PR-REVIEW.md .coordination/archives/phase-X/
 ```
 
 **Cleanup Script (optional):**
@@ -501,12 +501,12 @@ your-project/
 │   │
 │   ├── archives/              # Historical docs
 │   │   ├── phase-1/
-│   │   │   ├── SENIOR-ENGINEER-REVIEW.md
+│   │   │   ├── PR-REVIEW.md
 │   │   │   ├── COMPLETION-REPORT.md
 │   │   │   └── ...
 │   │   └── redundant/         # Deprecated files
 │   │
-│   └── PHASE-X-SENIOR-ENGINEER-REVIEW.md (active reviews)
+│   └── PHASE-X-PR-REVIEW.md (active reviews)
 │
 ├── docs/
 │   ├── PROGRESS.md            # ⭐ MASTER DASHBOARD (single source of truth)
@@ -808,7 +808,7 @@ Testing:
 **After phase completion:**
 1. Subagent creates COMPLETED.md
 2. Master conducts senior engineer review
-3. Master creates PHASE-X-SENIOR-ENGINEER-REVIEW.md
+3. Master creates PHASE-X-PR-REVIEW.md
 4. Discuss merge decision with user
 5. Merge if approved
 
@@ -1193,7 +1193,7 @@ git worktree prune
 # 4. Archive documentation
 mkdir -p .coordination/archives/phase-X
 mv .coordination/status-reports/phase-X-status.md .coordination/archives/phase-X/
-mv .coordination/PHASE-X-SENIOR-ENGINEER-REVIEW.md .coordination/archives/phase-X/
+mv .coordination/PHASE-X-PR-REVIEW.md .coordination/archives/phase-X/
 
 # 5. Create next phase worktree (if any)
 git worktree add .worktrees/phase-Y -b feature/phase-Y-name

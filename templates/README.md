@@ -24,7 +24,7 @@ Use these as guides when creating specific files - don't copy them directly:
 | `COMPLETED-TEMPLATE.md` | `COMPLETED.md` | Subagent | `.worktrees/phase-X/.phase-status/` |
 | `SESSION-STATE-TEMPLATE.md` | `SESSION-STATE.md` | Subagent (auto) | `.worktrees/phase-X/.phase-status/` |
 | `SESSION-SUMMARY-TEMPLATE.md` | `SESSION-SUMMARY.md` | Master | `.coordination/` |
-| `SENIOR-ENGINEER-REVIEW-TEMPLATE.md` | `PHASE-X-SENIOR-ENGINEER-REVIEW.md` | Master | `.coordination/` |
+| `PR-REVIEW-TEMPLATE.md` | `PHASE-X-PR-REVIEW.md` | Master | `.coordination/` |
 
 ## Session Templates Clarification
 
@@ -51,7 +51,7 @@ Use these as guides when creating specific files - don't copy them directly:
 
 ## Review Template
 
-**SENIOR-ENGINEER-REVIEW-TEMPLATE.md** is used when:
+**PR-REVIEW-TEMPLATE.md** is used when:
 - Master reviews completed phase
 - Creating PR review documentation
-- Output: `.coordination/PHASE-X-SENIOR-ENGINEER-REVIEW.md`
+- Output: `.coordination/PHASE-X-PR-REVIEW.md`
