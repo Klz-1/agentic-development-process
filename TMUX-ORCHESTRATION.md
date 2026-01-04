@@ -26,6 +26,7 @@
 ### **The Problem with Manual Polling**
 
 The standard agentic development process requires the Master Orchestrator to:
+
 - Check phase worktrees every 10-30 minutes
 - Manually read PROGRESS.md, BLOCKERS.md files
 - Switch between terminals for different phases
@@ -35,14 +36,14 @@ The standard agentic development process requires the Master Orchestrator to:
 
 ### **What Tmux Enables**
 
-| Manual Polling | Tmux Orchestration |
-|----------------|---------------------|
-| Check every 10-30 min | Real-time streaming |
-| Active file reading | Passive monitoring |
-| One terminal at a time | All phases visible |
-| Lost on disconnect | Persistent sessions |
-| No alerts | Automated notifications |
-| Context switching overhead | Unified dashboard |
+| Manual Polling             | Tmux Orchestration      |
+| -------------------------- | ----------------------- |
+| Check every 10-30 min      | Real-time streaming     |
+| Active file reading        | Passive monitoring      |
+| One terminal at a time     | All phases visible      |
+| Lost on disconnect         | Persistent sessions     |
+| No alerts                  | Automated notifications |
+| Context switching overhead | Unified dashboard       |
 
 ### **Core Benefits**
 
@@ -146,13 +147,13 @@ Subagent works in tmux pane
 
 ### **Recommended Window Layout**
 
-| Window | Name | Purpose | Panes |
-|--------|------|---------|-------|
-| 0 | `dashboard` | Master orchestrator overview | 3 |
-| 1 | `phase-1` | Phase 1 subagent | 3 |
-| 2 | `phase-2` | Phase 2 subagent | 3 |
-| N | `phase-N` | Phase N subagent | 3 |
-| N+1 | `git-ops` | Git operations & merging | 2 |
+| Window | Name        | Purpose                      | Panes |
+| ------ | ----------- | ---------------------------- | ----- |
+| 0      | `dashboard` | Master orchestrator overview | 3     |
+| 1      | `phase-1`   | Phase 1 subagent             | 3     |
+| 2      | `phase-2`   | Phase 2 subagent             | 3     |
+| N      | `phase-N`   | Phase N subagent             | 3     |
+| N+1    | `git-ops`   | Git operations & merging     | 2     |
 
 ### **Dashboard Window (Window 0)**
 
@@ -188,21 +189,51 @@ Subagent works in tmux pane
 ### **Prerequisites**
 
 ```bash
-# Install tmux (if not present)
+# macOS
+brew install tmux watch fswatch
+
 # Ubuntu/Debian
 sudo apt-get install tmux inotify-tools
-
-# macOS
-brew install tmux fswatch
 
 # Verify installation
 tmux -V
 ```
 
-### **Quick Start**
+### **Quick Start (Recommended)**
+
+Use the unified workspace launcher for the best experience:
 
 ```bash
-# Navigate to your project using this framework
+# Copy workspace launcher to your project
+cp /path/to/agentic-development-process/scripts/workspace ./
+
+# Launch workspace
+./workspace
+```
+
+**First time:** Creates tmux session with:
+
+- Dashboard (4-pane monitoring view)
+- Window per phase (phase-1, phase-2, etc.)
+- Master orchestrator window
+- Mouse mode auto-enabled
+
+**Returning:** Prompts to continue or reset:
+
+```
+Existing workspace found: my-project
+5 windows, created 2026-01-04 21:33
+
+  1) Continue - Attach to existing session
+  2) Reset    - Kill and recreate workspace
+  3) Status   - Show status without attaching
+  4) Cancel   - Exit
+```
+
+### **Alternative: Setup Script**
+
+```bash
+# Navigate to your project
 cd /path/to/your-project
 
 # Run the setup script
@@ -254,11 +285,13 @@ tmux attach -t agentic-dev
 The dashboard window provides constant visibility without active checking.
 
 **What to watch:**
+
 - `docs/PROGRESS.md` - Overall project status
 - Phase status pane - Quick health check of all phases
 - Alert pane - Immediate notification of important events
 
 **When to check other windows:**
+
 - Alert appears in dashboard
 - Need to provide guidance to subagent
 - Ready to review completed phase
@@ -277,6 +310,7 @@ tmux select-window -t agentic-dev:phase-2
 ```
 
 **When to use:**
+
 - Critical phase in progress
 - Subagent reported blocker
 - Approaching phase completion
@@ -314,12 +348,12 @@ tail -f test-output.log
 
 ### **Alert Types**
 
-| Event | File | Urgency | Action |
-|-------|------|---------|--------|
-| Blocker | `BLOCKERS.md` | 🔴 High | Check immediately |
+| Event    | File           | Urgency   | Action            |
+| -------- | -------------- | --------- | ----------------- |
+| Blocker  | `BLOCKERS.md`  | 🔴 High   | Check immediately |
 | Question | `QUESTIONS.md` | 🟡 Medium | Respond when able |
-| Complete | `COMPLETED.md` | 🟢 Info | Queue for review |
-| Progress | `PROGRESS.md` | ⚪ Low | Passive awareness |
+| Complete | `COMPLETED.md` | 🟢 Info   | Queue for review  |
+| Progress | `PROGRESS.md`  | ⚪ Low    | Passive awareness |
 
 ### **Alert Script Example**
 
@@ -496,6 +530,7 @@ tmux capture-pane -t agentic-dev:phase-1.0 -p > output.txt
 ### **Master Orchestrator Workflow with Tmux**
 
 **Before (Manual Polling):**
+
 ```
 Every 10-30 min:
   1. cd to phase worktree
@@ -507,6 +542,7 @@ Every 10-30 min:
 ```
 
 **After (Tmux Orchestration):**
+
 ```
 Continuous:
   1. Dashboard shows all phases at a glance
@@ -667,6 +703,7 @@ echo "Session restored with ${#ACTIVE_PHASES[@]} phase windows"
 ### **Common Issues**
 
 **Issue: Tmux session not persisting after system restart**
+
 - **Cause:** Tmux sessions don't survive reboots
 - **Solution:** Use tmux-resurrect plugin or recreate with setup script
 
@@ -682,6 +719,7 @@ run-shell ~/.tmux/plugins/tmux-resurrect/resurrect.tmux
 ```
 
 **Issue: Watch command not updating**
+
 - **Cause:** File permissions or path issues
 - **Solution:** Check file exists and is readable
 
@@ -694,6 +732,7 @@ cat /path/to/.phase-status/PROGRESS.md
 ```
 
 **Issue: inotifywait not available**
+
 - **Cause:** inotify-tools not installed
 - **Solution:** Install the package
 
@@ -706,6 +745,7 @@ brew install fswatch
 ```
 
 **Issue: Notifications not appearing**
+
 - **Cause:** Desktop notification system not configured
 - **Solution:** Install and configure notification tools
 
@@ -718,6 +758,7 @@ notify-send "Test" "This is a test notification"
 ```
 
 **Issue: Panes too small to see content**
+
 - **Cause:** Terminal window size or pane layout
 - **Solution:** Adjust pane sizes or zoom
 
@@ -735,11 +776,13 @@ tmux split-window -v -p 70  # 70% for new pane
 ### **Performance Tips**
 
 1. **Reduce watch frequency** for less critical monitors
+
    ```bash
    watch -n 30 ...  # Every 30 seconds instead of 5
    ```
 
 2. **Use inotify instead of polling** when possible
+
    ```bash
    # Polling (uses CPU)
    watch -n 5 cat file.md
@@ -749,6 +792,7 @@ tmux split-window -v -p 70  # 70% for new pane
    ```
 
 3. **Limit git log depth**
+
    ```bash
    git log --oneline -5  # Not -50
    ```
@@ -762,11 +806,13 @@ tmux split-window -v -p 70  # 70% for new pane
 ### **Session Hygiene**
 
 1. **Name sessions descriptively**
+
    ```bash
    tmux new-session -s project-name-agentic
    ```
 
 2. **Use consistent window naming**
+
    ```
    dashboard, phase-1, phase-2, git-ops
    ```

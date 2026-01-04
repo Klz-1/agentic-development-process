@@ -17,13 +17,13 @@ This guide solves that with a comprehensive orchestration pattern.
 
 This process was developed independently in **October 2025** through real-world production development. In **November 2025**, Anthropic published ["Effective Harnesses for Long-Running Agents"](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) describing remarkably similar patterns:
 
-| Pattern | This Guide | Anthropic Blog |
-|---------|-----------|----------------|
-| File-based state persistence | `docs/PROGRESS.md` + `.phase-status/` | `claude-progress.txt` |
-| Git as source of truth | Detailed merge workflow | Git logs + commits |
-| Incremental progress | 5-10 tasks per phase | One feature per session |
-| Session initialization | 5-minute context recovery | Structured startup protocol |
-| Testing before completion | 10-step mandatory workflow | End-to-end verification |
+| Pattern                      | This Guide                            | Anthropic Blog              |
+| ---------------------------- | ------------------------------------- | --------------------------- |
+| File-based state persistence | `docs/PROGRESS.md` + `.phase-status/` | `claude-progress.txt`       |
+| Git as source of truth       | Detailed merge workflow               | Git logs + commits          |
+| Incremental progress         | 5-10 tasks per phase                  | One feature per session     |
+| Session initialization       | 5-minute context recovery             | Structured startup protocol |
+| Testing before completion    | 10-step mandatory workflow            | End-to-end verification     |
 
 **This convergence validates these patterns as industry best practices.** This guide provides the comprehensive operational playbook that complements Anthropic's conceptual framework.
 
@@ -122,23 +122,56 @@ Tasks:
 ### 4. Orchestrate
 
 As master orchestrator:
+
 - Check phase progress every 10-30 minutes
 - Provide guidance via MASTER-NOTES.md
 - **Review PRs and present recommendations to user**
 - **User approves/rejects merge** (Master executes after approval)
 - Clean up worktrees after PR merge (see Step 6)
 
-### 5. (Optional) Enable Tmux Monitoring
+### 5. Launch Workspace
 
-For real-time, autonomous monitoring with automated alerts:
+Start or continue your development workspace with a single command:
 
 ```bash
-# Set up tmux session with dashboard
-./scripts/setup-tmux-session.sh
+# Copy workspace launcher to your project
+cp /path/to/agentic-development-process/scripts/workspace ./
 
-# Attach to monitor all phases
-tmux attach -t agentic-dev
+# Launch workspace
+./workspace
 ```
+
+**First time:** Creates tmux session with dashboard + phase windows + master window
+
+**Returning:** Offers to continue existing session or reset
+
+```
+╔═══════════════════════════════════════════════════════════════╗
+║           🚀 AGENTIC DEVELOPMENT WORKSPACE 🚀                 ║
+╚═══════════════════════════════════════════════════════════════╝
+
+Existing workspace found: my-project
+5 windows, created 2026-01-04 21:33
+
+  1) Continue - Attach to existing session
+  2) Reset    - Kill and recreate workspace
+  3) Status   - Show status without attaching
+  4) Cancel   - Exit
+```
+
+**Dashboard layout:**
+
+```
+┌─────────────────────┬─────────────────────┐
+│ PROGRESS            │ PHASE STATUS        │
+│ (all phases)        │ (summary view)      │
+├─────────────────────┼─────────────────────┤
+│ FILE WATCHER        │ RECENT COMMITS      │
+│ (alerts on changes) │ (git activity)      │
+└─────────────────────┴─────────────────────┘
+```
+
+**Prerequisites:** `brew install tmux watch fswatch`
 
 See [TMUX-ORCHESTRATION.md](./TMUX-ORCHESTRATION.md) for the complete guide.
 
@@ -173,6 +206,7 @@ cp githooks/* .git/hooks/ && chmod +x .git/hooks/*
 ```
 
 The pre-commit hook checks:
+
 - No secrets/credentials in code
 - Linting passes
 - Tests pass
@@ -183,10 +217,12 @@ The pre-commit hook checks:
 **Automatic with Claude Hooks (recommended):**
 
 The hooks auto-detect your role based on directory structure:
+
 - **Main repo** (has `.worktrees/`) → Master Orchestrator context
 - **Phase worktree** (has `.phase-status/`) → Subagent context
 
 **One-time setup** (works for both roles):
+
 ```bash
 mkdir -p .claude/hooks
 cp hooks/session-start.sh .claude/hooks/
@@ -195,10 +231,10 @@ chmod +x .claude/hooks/*.sh
 cp templates/claude-settings.json .claude/settings.json
 ```
 
-| Role | Auto-Detected When | SessionStart Shows |
-|------|-------------------|-------------------|
-| Master | In main repo with `.worktrees/` | All phases overview, blockers |
-| Subagent | In worktree with `.phase-status/` | Master notes, current task |
+| Role     | Auto-Detected When                | SessionStart Shows            |
+| -------- | --------------------------------- | ----------------------------- |
+| Master   | In main repo with `.worktrees/`   | All phases overview, blockers |
+| Subagent | In worktree with `.phase-status/` | Master notes, current task    |
 
 Zero configuration needed - role is detected automatically!
 
@@ -228,6 +264,7 @@ User reads ← Master updates dashboard ← Master provides guidance
 ### Agent Guardrails
 
 Subagents are explicitly prohibited from:
+
 - Skipping testing
 - Merging to develop
 - Committing without 100% tests passing
@@ -238,6 +275,7 @@ Only the Master Orchestrator merges.
 ## Results You Can Expect
 
 With this process:
+
 - **Fast development** via parallel worktrees
 - **High quality** via mandatory testing + reviews
 - **Easy resume** via file-based context
@@ -255,4 +293,4 @@ MIT License - Use freely for any project.
 
 ---
 
-*This is a battle-tested process for high-quality, high-velocity AI-assisted development.*
+_This is a battle-tested process for high-quality, high-velocity AI-assisted development._
