@@ -162,10 +162,16 @@ master_session_start() {
     echo "2. **Review blockers** - Check for BLOCKERS.md files and help resolve them"
     echo "3. **Review completed work** - Look for COMPLETED.md and create PRs for finished phases"
     echo "4. **Assign work** - Update MASTER-NOTES.md with guidance for subagents"
-    echo "5. **Monitor progress** - Show a dashboard view of all phases"
+    echo "5. **Launch subagents** - Kick off Claude sessions in phase worktrees (offer tmux orchestration)"
+    echo "6. **Monitor with tmux** - Set up tmux session to monitor all subagents in real-time"
     echo ""
     echo "Present these as a numbered menu. Prioritize blockers and completed phases that need attention."
-    echo "Be proactive - if a phase is blocked or complete, recommend addressing it first."
+    echo "Be proactive - if phases have no active subagent, offer to launch them."
+    echo ""
+    echo "For option 5/6, ask user if they want to:"
+    echo "- Launch subagents in separate terminals"
+    echo "- Set up tmux orchestration for real-time monitoring (recommended for multiple phases)"
+    echo "- Use the setup script: scripts/setup-tmux-session.sh"
 }
 
 # ============================================================================
