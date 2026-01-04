@@ -2080,23 +2080,13 @@ cp templates/claude-settings-subagent.json .claude/settings.json
 - Active blockers warning
 - Subagent guidelines reminder
 
-**Option 2: Git Hooks**
+**Manual Fallback:**
 
-For non-Claude workflows or additional automation:
-
+If Claude hooks aren't available, use scripts directly:
 ```bash
-git config core.hooksPath githooks
+./scripts/session-init.sh    # Start of session
+./scripts/session-save.sh    # End of session
 ```
-
-This enables:
-- `post-checkout`: Auto-runs `session-init.sh` when switching branches
-- `pre-push`: Auto-saves session state before pushing
-
-**Option 3: Shell/Tmux Hooks**
-
-Additional integrations available:
-- `scripts/shell-hooks.sh` - Exit traps and cd hooks for bash/zsh
-- `scripts/tmux-hooks.sh` - Auto-save when tmux panes close
 
 **Automatic Workflow with Claude Hooks:**
 
@@ -2107,11 +2097,11 @@ Additional integrations available:
 │                                                                 │
 │   Start Claude Code session                                     │
 │        ↓                                                        │
-│   [SessionStart hook] → Phase context fed to Claude             │
+│   [SessionStart hook] → Role auto-detected, context provided    │
 │        ↓                                                        │
 │   Claude knows:                                                 │
 │   • Previous session state                                      │
-│   • Current task                                                │
+│   • Current task (Subagent) / All phases (Master)               │
 │   • MASTER-NOTES updates                                        │
 │   • Uncommitted changes                                         │
 │        ↓                                                        │
