@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/session-start.sh",
+            "command": ".claude/hooks/master-session-start.sh",
             "timeout": 30
           }
         ]
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/session-end.sh",
+            "command": ".claude/hooks/master-session-end.sh",
             "timeout": 10
           }
         ]

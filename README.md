@@ -167,29 +167,34 @@ The pre-commit hook checks:
 
 ### Session Management
 
-**Automatic mode with Claude Hooks (recommended):**
+**Automatic with Claude Hooks (recommended):**
 
+Role-specific hooks provide tailored context for Master and Subagent roles.
+
+**For Master Orchestrator** (main repo):
 ```bash
-# Copy hooks to your project
 mkdir -p .claude/hooks
-cp hooks/session-start.sh .claude/hooks/
-cp hooks/session-end.sh .claude/hooks/
+cp hooks/master-session-start.sh .claude/hooks/
+cp hooks/master-session-end.sh .claude/hooks/
 chmod +x .claude/hooks/*.sh
-
-# Add to .claude/settings.json (see templates/claude-settings.json)
+cp templates/claude-settings-master.json .claude/settings.json
 ```
 
-With Claude hooks enabled:
-- **SessionStart** → Auto-shows phase context when Claude session begins
-- **Stop** → Auto-saves session state when Claude finishes responding
-
-**Manual mode:**
+**For Subagents** (each phase worktree):
 ```bash
-./scripts/session-init.sh    # Start of session
-./scripts/session-save.sh    # End of session
+mkdir -p .claude/hooks
+cp hooks/subagent-session-start.sh .claude/hooks/
+cp hooks/subagent-session-end.sh .claude/hooks/
+chmod +x .claude/hooks/*.sh
+cp templates/claude-settings-subagent.json .claude/settings.json
 ```
 
-Zero manual commands needed - session state is preserved automatically!
+| Role | SessionStart Shows | Stop Saves |
+|------|-------------------|------------|
+| Master | All phases overview, blockers, completed work | Orchestration state |
+| Subagent | Master notes, current task, phase progress | Phase session state |
+
+Zero manual commands needed - context is automatic!
 
 ## Core Concepts
 

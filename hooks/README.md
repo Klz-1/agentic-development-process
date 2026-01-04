@@ -1,192 +1,180 @@
 # Claude Code Hooks for Agentic Development
 
-This directory contains Claude Code hooks that automate session management.
+This directory contains Claude Code hooks that automate session management for both **Master Orchestrator** and **Subagent** roles.
 
-## Hooks Included
+## Role-Specific Hooks
 
-| Hook | Event | Purpose |
-|------|-------|---------|
-| `session-start.sh` | SessionStart | Automatically provides phase context at session start |
-| `session-end.sh` | Stop | Automatically saves session state when Claude finishes |
+| Hook | Role | Event | Purpose |
+|------|------|-------|---------|
+| `master-session-start.sh` | Master | SessionStart | Overview of all phases, blockers, completed work |
+| `master-session-end.sh` | Master | Stop | Save orchestration state |
+| `subagent-session-start.sh` | Subagent | SessionStart | Phase-specific context, Master notes, current task |
+| `subagent-session-end.sh` | Subagent | Stop | Save phase session state |
 
 ## Installation
 
-### Option 1: Copy to Your Project
-
-Copy the hooks to your project's `.claude/hooks/` directory:
+### For Master Orchestrator (Main Repository)
 
 ```bash
+# From the main project repository
 mkdir -p .claude/hooks
-cp hooks/session-start.sh .claude/hooks/
-cp hooks/session-end.sh .claude/hooks/
+
+# Copy Master hooks
+cp /path/to/agentic-development-process/hooks/master-session-start.sh .claude/hooks/
+cp /path/to/agentic-development-process/hooks/master-session-end.sh .claude/hooks/
 chmod +x .claude/hooks/*.sh
+
+# Use Master settings template
+cp /path/to/agentic-development-process/templates/claude-settings-master.json .claude/settings.json
 ```
 
-Then add to `.claude/settings.json`:
+### For Subagents (Phase Worktrees)
 
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/session-start.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/session-end.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
+Each phase worktree needs its own hooks:
+
+```bash
+# From a phase worktree (e.g., .worktrees/phase-1)
+mkdir -p .claude/hooks
+
+# Copy Subagent hooks
+cp /path/to/agentic-development-process/hooks/subagent-session-start.sh .claude/hooks/
+cp /path/to/agentic-development-process/hooks/subagent-session-end.sh .claude/hooks/
+chmod +x .claude/hooks/*.sh
+
+# Use Subagent settings template
+cp /path/to/agentic-development-process/templates/claude-settings-subagent.json .claude/settings.json
 ```
 
-### Option 2: Reference Directly
+### Quick Setup Script
 
-If you have the agentic-development-process repo available, reference the hooks directly:
+```bash
+#!/bin/bash
+# setup-hooks.sh - Run from main project directory
 
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/path/to/agentic-development-process/hooks/session-start.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/path/to/agentic-development-process/hooks/session-end.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
+ADP_PATH="/path/to/agentic-development-process"
+
+# Setup Master hooks in main repo
+mkdir -p .claude/hooks
+cp "$ADP_PATH/hooks/master-session-start.sh" .claude/hooks/
+cp "$ADP_PATH/hooks/master-session-end.sh" .claude/hooks/
+chmod +x .claude/hooks/*.sh
+cp "$ADP_PATH/templates/claude-settings-master.json" .claude/settings.json
+echo "✓ Master hooks installed"
+
+# Setup Subagent hooks in each worktree
+for wt in .worktrees/*/; do
+    if [ -d "$wt" ]; then
+        mkdir -p "$wt/.claude/hooks"
+        cp "$ADP_PATH/hooks/subagent-session-start.sh" "$wt/.claude/hooks/"
+        cp "$ADP_PATH/hooks/subagent-session-end.sh" "$wt/.claude/hooks/"
+        chmod +x "$wt/.claude/hooks/"*.sh
+        cp "$ADP_PATH/templates/claude-settings-subagent.json" "$wt/.claude/settings.json"
+        echo "✓ Subagent hooks installed in $wt"
+    fi
+done
 ```
 
-### Option 3: User-Wide Installation
+## What Each Hook Does
 
-Add to `~/.claude/settings.json` for all projects:
+### Master Orchestrator Hooks
 
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/session-start.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/session-end.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
+**master-session-start.sh** provides:
+- Overview table of ALL phase statuses
+- Summary stats (total, in progress, blocked, complete)
+- Immediate attention items highlighted
+- Blocked phase details with BLOCKERS.md content
+- Completed phases ready for review
+- Open PR status (if `gh` CLI available)
+- Recent activity across all phases
+
+**master-session-end.sh** saves:
+- Phase status snapshot
+- Recent activity summary
+- Updates `.coordination/MASTER-SESSION-STATE.md`
+
+### Subagent Hooks
+
+**subagent-session-start.sh** provides:
+- MASTER-NOTES.md content (guidance from Master)
+- Previous session state
+- Task list and current task
+- Active blockers warning
+- Git status and recent commits
+- Subagent guidelines reminder
+
+**subagent-session-end.sh** saves:
+- Current task and status
+- Uncommitted changes
+- Recent commits
+- Updates `.phase-status/SESSION-STATE.md`
+
+## Settings Templates
+
+| Template | Use For |
+|----------|---------|
+| `claude-settings-master.json` | Main repository (Master Orchestrator) |
+| `claude-settings-subagent.json` | Phase worktrees (Subagents) |
+
+## Example Output
+
+### Master Session Start
+```
+## Master Orchestrator Session
+
+**Role:** Master Orchestrator
+**Project:** my-saas-app
+
+### Phase Status Overview
+
+| Phase | Branch | Status | Action Needed |
+|-------|--------|--------|---------------|
+| phase-1 | `feature/phase-1-foundation` | ✅ Complete | **Review & create PR** |
+| phase-2 | `feature/phase-2-auth` | 🚨 BLOCKED | **Resolve blocker** |
+| phase-3 | `feature/phase-3-dashboard` | In Progress | |
+
+### ⚠️ Immediate Attention Required
+
+- phase-1: Ready for review
+- phase-2: BLOCKED - Check BLOCKERS.md
 ```
 
-## What the Hooks Do
-
-### session-start.sh (SessionStart)
-
-When a Claude Code session starts, this hook:
-
-1. **Detects if you're in a phase worktree** - Provides phase-specific context
-2. **Shows previous session state** - What was being worked on, current status
-3. **Highlights MASTER-NOTES updates** - Alerts if new guidance since last session
-4. **Shows blockers** - Warns if there are unresolved blockers
-5. **Displays progress** - Current task and completion status
-6. **Lists uncommitted changes** - So you know what's pending
-7. **Shows recent commits** - Context on recent work
-
-The output is fed directly to Claude as context, so Claude knows exactly where you left off.
-
-### session-end.sh (Stop)
-
-When Claude finishes responding, this hook:
-
-1. **Auto-saves session state** - Creates/updates SESSION-STATE.md
-2. **Infers context from git** - Captures what was worked on
-3. **Records technical state** - Uncommitted files, recent commits
-4. **Runs silently** - No output to avoid noise
-
-This ensures session state is always preserved, even if you forget to save manually.
-
-## Customization
-
-### Timeout
-
-Add a timeout to prevent hanging:
-
-```json
-{
-  "type": "command",
-  "command": ".claude/hooks/session-start.sh",
-  "timeout": 30
-}
+### Subagent Session Start
 ```
+## Subagent Session - phase-2
 
-### Conditional Execution
+**Role:** Subagent (Phase Worker)
+**Phase:** phase-2
+**Branch:** `feature/phase-2-auth`
 
-The hooks automatically detect if they're in a phase directory and skip silently if not. No configuration needed.
+### 📋 Master Orchestrator Notes
 
-## Environment Variables
+**IMPORTANT:** Review guidance from the Master Orchestrator:
 
-The hooks use these environment variables:
+[Content of MASTER-NOTES.md]
 
-- `CLAUDE_PROJECT_DIR` - Project root (set by Claude Code)
-- `PWD` - Current working directory (fallback)
+### Phase Tasks
+
+**Progress:** 3/6 tasks complete
+
+**Current Task:** Implement password reset flow
+```
 
 ## Troubleshooting
 
-### Hook not running
+### Hooks not running
 
-1. Check the hook is executable: `chmod +x .claude/hooks/*.sh`
-2. Verify the path in settings.json is correct
+1. Check permissions: `chmod +x .claude/hooks/*.sh`
+2. Verify path in settings.json matches actual hook location
 3. Check Claude Code logs for errors
 
 ### Wrong context shown
 
-1. Make sure you're in the correct phase directory
-2. Check that `.phase-status/` directory exists
-3. Verify SESSION-STATE.md was created by previous session
+1. Verify you're using the correct hook for your role
+2. Check that `.phase-status/` exists (for subagents)
+3. Check that `.worktrees/` exists (for master)
 
-### Session not saving
+### Settings not loading
 
-1. Check that `scripts/session-save.sh` exists and is executable
-2. Verify the script path is correct for your directory structure
-3. Run manually to check for errors: `./scripts/session-save.sh --auto`
+1. Ensure `.claude/settings.json` exists in the right location
+2. Verify JSON syntax is valid
+3. Restart Claude Code session

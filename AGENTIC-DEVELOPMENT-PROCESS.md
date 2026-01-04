@@ -2034,47 +2034,51 @@ Run at the **end** of every session:
 
 ### **Automatic Session Hooks**
 
-For fully automatic session management, use Claude Code hooks:
+For fully automatic session management, use role-specific Claude Code hooks:
 
 **Option 1: Claude Code Hooks (Recommended)**
 
-Copy hooks to your project:
+Hooks are role-specific because Master and Subagent need different context:
+
+| Role | SessionStart | Stop |
+|------|--------------|------|
+| **Master** | All phases overview, blockers, completed work | Saves orchestration state |
+| **Subagent** | Master notes, current task, phase progress | Saves phase session state |
+
+**For Master Orchestrator** (main repository):
 
 ```bash
 mkdir -p .claude/hooks
-cp hooks/session-start.sh .claude/hooks/
-cp hooks/session-end.sh .claude/hooks/
+cp hooks/master-session-start.sh .claude/hooks/
+cp hooks/master-session-end.sh .claude/hooks/
 chmod +x .claude/hooks/*.sh
+cp templates/claude-settings-master.json .claude/settings.json
 ```
 
-Add to `.claude/settings.json` (see `templates/claude-settings.json`):
+**For Subagents** (each phase worktree):
 
-```json
-{
-  "hooks": {
-    "SessionStart": [{
-      "matcher": "*",
-      "hooks": [{
-        "type": "command",
-        "command": ".claude/hooks/session-start.sh",
-        "timeout": 30
-      }]
-    }],
-    "Stop": [{
-      "matcher": "*",
-      "hooks": [{
-        "type": "command",
-        "command": ".claude/hooks/session-end.sh",
-        "timeout": 10
-      }]
-    }]
-  }
-}
+```bash
+mkdir -p .claude/hooks
+cp hooks/subagent-session-start.sh .claude/hooks/
+cp hooks/subagent-session-end.sh .claude/hooks/
+chmod +x .claude/hooks/*.sh
+cp templates/claude-settings-subagent.json .claude/settings.json
 ```
 
-This enables:
-- **SessionStart**: Auto-shows phase context when Claude session begins
-- **Stop**: Auto-saves session state when Claude finishes responding
+**Master SessionStart provides:**
+- Overview table of ALL phase statuses
+- Summary: total, in progress, blocked, complete
+- ⚠️ Immediate attention items
+- Blocked phase details with BLOCKERS.md content
+- Completed phases ready for review
+- Open PR status
+
+**Subagent SessionStart provides:**
+- 📋 MASTER-NOTES.md content (guidance from Master)
+- Previous session state
+- Task list and current task
+- Active blockers warning
+- Subagent guidelines reminder
 
 **Option 2: Git Hooks**
 
