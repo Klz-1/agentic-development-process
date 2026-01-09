@@ -1,0 +1,530 @@
+//! Application state and main event loop
+
+use crate::config::Config;
+use crate::event::{Event, EventHandler};
+use crate::ui;
+use anyhow::Result;
+use crossterm::{
+    event::{DisableMouseCapture, EnableMouseCapture},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::prelude::*;
+use std::io;
+
+/// Which panel currently has focus
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FocusedPanel {
+    #[default]
+    Sessions,
+    Output,
+    Files,
+}
+
+impl FocusedPanel {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Sessions => Self::Output,
+            Self::Output => Self::Files,
+            Self::Files => Self::Sessions,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            Self::Sessions => Self::Files,
+            Self::Output => Self::Sessions,
+            Self::Files => Self::Output,
+        }
+    }
+}
+
+/// Panel resize state
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ResizeState {
+    #[default]
+    None,
+    /// Dragging the border between sessions and output panels
+    DraggingSessionsOutput,
+    /// Dragging the border between output and files panels
+    DraggingOutputFiles,
+}
+
+/// Main application state
+pub struct App {
+    /// Application configuration
+    #[allow(dead_code)]
+    pub config: Config,
+    /// Whether the app should quit
+    pub should_quit: bool,
+    /// Currently focused panel
+    pub focused_panel: FocusedPanel,
+    /// Selected session index
+    pub selected_session: usize,
+    /// Selected file index
+    pub selected_file: usize,
+    /// Output scroll position
+    pub output_scroll: usize,
+    /// Whether output auto-scrolls
+    pub output_auto_scroll: bool,
+    /// Whether help overlay is visible
+    pub show_help: bool,
+    /// Whether fuzzy finder is open
+    pub show_fuzzy_finder: bool,
+    /// Fuzzy finder input text
+    pub fuzzy_input: String,
+    /// Panel width percentages (sessions, output, files)
+    pub panel_widths: (u16, u16, u16),
+    /// Current resize state
+    pub resize_state: ResizeState,
+    /// Sessions panel scroll offset
+    pub sessions_scroll: usize,
+    /// Files panel scroll offset
+    pub files_scroll: usize,
+    /// Total number of sessions (for scroll bounds)
+    pub session_count: usize,
+    /// Total number of files (for scroll bounds)
+    pub file_count: usize,
+    /// Total output lines (for scroll bounds)
+    pub output_line_count: usize,
+    /// Last known terminal width
+    pub terminal_width: u16,
+}
+
+impl App {
+    pub fn new(config: Config) -> Self {
+        Self {
+            config,
+            should_quit: false,
+            focused_panel: FocusedPanel::default(),
+            selected_session: 0,
+            selected_file: 0,
+            output_scroll: 0,
+            output_auto_scroll: true,
+            show_help: false,
+            show_fuzzy_finder: false,
+            fuzzy_input: String::new(),
+            panel_widths: (20, 40, 40), // Default percentages
+            resize_state: ResizeState::None,
+            sessions_scroll: 0,
+            files_scroll: 0,
+            session_count: 8,  // Mock data count
+            file_count: 9,     // Mock data count
+            output_line_count: 9, // Mock data count
+            terminal_width: 80,
+        }
+    }
+
+    /// Focus a specific panel
+    #[allow(dead_code)]
+    pub fn focus_panel(&mut self, panel: FocusedPanel) {
+        self.focused_panel = panel;
+    }
+
+    /// Set panel widths ensuring minimum sizes
+    #[allow(dead_code)]
+    pub fn set_panel_widths(&mut self, sessions: u16, output: u16, files: u16) {
+        const MIN_WIDTH: u16 = 10;
+
+        // Ensure minimum widths
+        let sessions = sessions.max(MIN_WIDTH);
+        let output = output.max(MIN_WIDTH);
+        let files = files.max(MIN_WIDTH);
+
+        // Normalize to 100%
+        let total = sessions + output + files;
+        if total > 0 {
+            self.panel_widths = (
+                (sessions * 100) / total,
+                (output * 100) / total,
+                (files * 100) / total,
+            );
+        }
+    }
+
+    /// Update panel width based on drag position
+    pub fn update_resize(&mut self, x: u16) {
+        let width = self.terminal_width;
+        if width == 0 {
+            return;
+        }
+
+        let x_percent = ((x as u32) * 100 / (width as u32)) as u16;
+
+        match self.resize_state {
+            ResizeState::DraggingSessionsOutput => {
+                let sessions = x_percent.clamp(10, 50);
+                let remaining = 100 - sessions;
+                let output = (remaining * self.panel_widths.1) / (self.panel_widths.1 + self.panel_widths.2);
+                let files = remaining - output;
+                self.panel_widths = (sessions, output.max(10), files.max(10));
+            }
+            ResizeState::DraggingOutputFiles => {
+                let sessions = self.panel_widths.0;
+                let output = (x_percent.saturating_sub(sessions)).clamp(10, 80 - sessions);
+                let files = 100 - sessions - output;
+                self.panel_widths = (sessions, output, files.max(10));
+            }
+            ResizeState::None => {}
+        }
+    }
+
+    /// Handle keyboard/mouse input
+    pub fn handle_event(&mut self, event: Event) {
+        match event {
+            Event::Key(key) => self.handle_key(key),
+            Event::Mouse(mouse) => self.handle_mouse(mouse),
+            Event::Tick => self.on_tick(),
+            Event::Resize(w, _h) => {
+                self.terminal_width = w;
+            }
+        }
+    }
+
+    fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
+        use crossterm::event::KeyCode;
+
+        // Handle fuzzy finder input first
+        if self.show_fuzzy_finder {
+            match key.code {
+                KeyCode::Esc => {
+                    self.show_fuzzy_finder = false;
+                    self.fuzzy_input.clear();
+                }
+                KeyCode::Enter => {
+                    // TODO: Select fuzzy finder result
+                    self.show_fuzzy_finder = false;
+                    self.fuzzy_input.clear();
+                }
+                KeyCode::Char(c) => {
+                    self.fuzzy_input.push(c);
+                }
+                KeyCode::Backspace => {
+                    self.fuzzy_input.pop();
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        // Handle help overlay
+        if self.show_help {
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q') => {
+                    self.show_help = false;
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        // Normal key handling
+        match key.code {
+            KeyCode::Char('q') => self.should_quit = true,
+            KeyCode::Tab => self.focused_panel = self.focused_panel.next(),
+            KeyCode::BackTab => self.focused_panel = self.focused_panel.prev(),
+            KeyCode::Up | KeyCode::Char('k') => self.navigate_up(),
+            KeyCode::Down | KeyCode::Char('j') => self.navigate_down(),
+            KeyCode::PageUp => self.page_up(),
+            KeyCode::PageDown => self.page_down(),
+            KeyCode::Home => self.go_home(),
+            KeyCode::End => self.go_end(),
+            KeyCode::Enter => self.primary_action(),
+            KeyCode::Char('?') => {
+                self.show_help = true;
+            }
+            KeyCode::Char('/') => {
+                self.show_fuzzy_finder = true;
+                self.fuzzy_input.clear();
+            }
+            KeyCode::Char('p') if self.focused_panel == FocusedPanel::Output => {
+                self.output_auto_scroll = !self.output_auto_scroll;
+            }
+            KeyCode::Esc => {
+                // Cancel any ongoing operation
+                self.resize_state = ResizeState::None;
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_mouse(&mut self, mouse: crossterm::event::MouseEvent) {
+        use crossterm::event::{MouseButton, MouseEventKind};
+
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                // Check if clicking on a panel border for resize
+                let (sessions_end, output_end) = self.get_panel_borders();
+
+                if (mouse.column as i16 - sessions_end as i16).abs() <= 1 {
+                    self.resize_state = ResizeState::DraggingSessionsOutput;
+                } else if (mouse.column as i16 - output_end as i16).abs() <= 1 {
+                    self.resize_state = ResizeState::DraggingOutputFiles;
+                } else {
+                    // Click to focus panel and select item
+                    self.handle_panel_click(mouse.column, mouse.row);
+                }
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                if self.resize_state != ResizeState::None {
+                    self.update_resize(mouse.column);
+                }
+            }
+            MouseEventKind::Up(MouseButton::Left) => {
+                self.resize_state = ResizeState::None;
+            }
+            MouseEventKind::ScrollUp => {
+                self.scroll_panel_up(mouse.column);
+            }
+            MouseEventKind::ScrollDown => {
+                self.scroll_panel_down(mouse.column);
+            }
+            _ => {}
+        }
+    }
+
+    /// Get panel border positions in terminal columns
+    fn get_panel_borders(&self) -> (u16, u16) {
+        let width = self.terminal_width;
+        let sessions_end = (width as u32 * self.panel_widths.0 as u32 / 100) as u16;
+        let output_end = sessions_end + (width as u32 * self.panel_widths.1 as u32 / 100) as u16;
+        (sessions_end, output_end)
+    }
+
+    /// Handle click within a panel to focus and select
+    fn handle_panel_click(&mut self, x: u16, y: u16) {
+        let (sessions_end, output_end) = self.get_panel_borders();
+
+        if x < sessions_end {
+            self.focused_panel = FocusedPanel::Sessions;
+            // Select item based on y position (accounting for border)
+            if y > 0 {
+                let index = (y - 1) as usize + self.sessions_scroll;
+                if index < self.session_count {
+                    self.selected_session = index;
+                }
+            }
+        } else if x < output_end {
+            self.focused_panel = FocusedPanel::Output;
+            // Clicking output disables auto-scroll
+            self.output_auto_scroll = false;
+        } else {
+            self.focused_panel = FocusedPanel::Files;
+            // Select item based on y position (accounting for border)
+            if y > 0 {
+                let index = (y - 1) as usize + self.files_scroll;
+                if index < self.file_count {
+                    self.selected_file = index;
+                }
+            }
+        }
+    }
+
+    /// Scroll panel up based on mouse position
+    fn scroll_panel_up(&mut self, x: u16) {
+        let (sessions_end, output_end) = self.get_panel_borders();
+
+        if x < sessions_end {
+            self.sessions_scroll = self.sessions_scroll.saturating_sub(3);
+            if self.selected_session > 0 {
+                self.selected_session = self.selected_session.saturating_sub(1);
+            }
+        } else if x < output_end {
+            self.output_auto_scroll = false;
+            self.output_scroll = self.output_scroll.saturating_sub(3);
+        } else {
+            self.files_scroll = self.files_scroll.saturating_sub(3);
+            if self.selected_file > 0 {
+                self.selected_file = self.selected_file.saturating_sub(1);
+            }
+        }
+    }
+
+    /// Scroll panel down based on mouse position
+    fn scroll_panel_down(&mut self, x: u16) {
+        let (sessions_end, output_end) = self.get_panel_borders();
+
+        if x < sessions_end {
+            self.sessions_scroll = (self.sessions_scroll + 3).min(self.session_count.saturating_sub(1));
+            self.selected_session = (self.selected_session + 1).min(self.session_count.saturating_sub(1));
+        } else if x < output_end {
+            self.output_auto_scroll = false;
+            self.output_scroll = (self.output_scroll + 3).min(self.output_line_count.saturating_sub(1));
+        } else {
+            self.files_scroll = (self.files_scroll + 3).min(self.file_count.saturating_sub(1));
+            self.selected_file = (self.selected_file + 1).min(self.file_count.saturating_sub(1));
+        }
+    }
+
+    fn on_tick(&mut self) {
+        // Refresh session data, output, etc.
+        // In a real implementation, this would poll tmux for updates
+    }
+
+    fn navigate_up(&mut self) {
+        match self.focused_panel {
+            FocusedPanel::Sessions => {
+                self.selected_session = self.selected_session.saturating_sub(1);
+                // Adjust scroll if selection goes above visible area
+                if self.selected_session < self.sessions_scroll {
+                    self.sessions_scroll = self.selected_session;
+                }
+            }
+            FocusedPanel::Output => {
+                self.output_auto_scroll = false;
+                self.output_scroll = self.output_scroll.saturating_sub(1);
+            }
+            FocusedPanel::Files => {
+                self.selected_file = self.selected_file.saturating_sub(1);
+                // Adjust scroll if selection goes above visible area
+                if self.selected_file < self.files_scroll {
+                    self.files_scroll = self.selected_file;
+                }
+            }
+        }
+    }
+
+    fn navigate_down(&mut self) {
+        match self.focused_panel {
+            FocusedPanel::Sessions => {
+                if self.selected_session < self.session_count.saturating_sub(1) {
+                    self.selected_session += 1;
+                }
+            }
+            FocusedPanel::Output => {
+                self.output_auto_scroll = false;
+                if self.output_scroll < self.output_line_count.saturating_sub(1) {
+                    self.output_scroll += 1;
+                }
+            }
+            FocusedPanel::Files => {
+                if self.selected_file < self.file_count.saturating_sub(1) {
+                    self.selected_file += 1;
+                }
+            }
+        }
+    }
+
+    fn page_up(&mut self) {
+        let page_size = 10;
+        match self.focused_panel {
+            FocusedPanel::Sessions => {
+                self.selected_session = self.selected_session.saturating_sub(page_size);
+                self.sessions_scroll = self.sessions_scroll.saturating_sub(page_size);
+            }
+            FocusedPanel::Output => {
+                self.output_auto_scroll = false;
+                self.output_scroll = self.output_scroll.saturating_sub(page_size);
+            }
+            FocusedPanel::Files => {
+                self.selected_file = self.selected_file.saturating_sub(page_size);
+                self.files_scroll = self.files_scroll.saturating_sub(page_size);
+            }
+        }
+    }
+
+    fn page_down(&mut self) {
+        let page_size = 10;
+        match self.focused_panel {
+            FocusedPanel::Sessions => {
+                self.selected_session = (self.selected_session + page_size).min(self.session_count.saturating_sub(1));
+                self.sessions_scroll = (self.sessions_scroll + page_size).min(self.session_count.saturating_sub(1));
+            }
+            FocusedPanel::Output => {
+                self.output_auto_scroll = false;
+                self.output_scroll = (self.output_scroll + page_size).min(self.output_line_count.saturating_sub(1));
+            }
+            FocusedPanel::Files => {
+                self.selected_file = (self.selected_file + page_size).min(self.file_count.saturating_sub(1));
+                self.files_scroll = (self.files_scroll + page_size).min(self.file_count.saturating_sub(1));
+            }
+        }
+    }
+
+    fn go_home(&mut self) {
+        match self.focused_panel {
+            FocusedPanel::Sessions => {
+                self.selected_session = 0;
+                self.sessions_scroll = 0;
+            }
+            FocusedPanel::Output => {
+                self.output_auto_scroll = false;
+                self.output_scroll = 0;
+            }
+            FocusedPanel::Files => {
+                self.selected_file = 0;
+                self.files_scroll = 0;
+            }
+        }
+    }
+
+    fn go_end(&mut self) {
+        match self.focused_panel {
+            FocusedPanel::Sessions => {
+                self.selected_session = self.session_count.saturating_sub(1);
+            }
+            FocusedPanel::Output => {
+                self.output_auto_scroll = true;
+                self.output_scroll = self.output_line_count.saturating_sub(1);
+            }
+            FocusedPanel::Files => {
+                self.selected_file = self.file_count.saturating_sub(1);
+            }
+        }
+    }
+
+    fn primary_action(&mut self) {
+        match self.focused_panel {
+            FocusedPanel::Sessions => {
+                // TODO: Attach to selected session
+            }
+            FocusedPanel::Output => {
+                // TODO: Send command
+            }
+            FocusedPanel::Files => {
+                // TODO: Open/preview file
+            }
+        }
+    }
+}
+
+/// Run the application
+pub async fn run(config: Config) -> Result<()> {
+    // Setup terminal
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    // Create app state
+    let mut app = App::new(config);
+
+    // Create event handler
+    let events = EventHandler::new(250); // 250ms tick rate
+
+    // Main loop
+    loop {
+        // Draw UI
+        terminal.draw(|frame| ui::draw(frame, &app))?;
+
+        // Handle events
+        let event = events.next()?;
+        app.handle_event(event);
+
+        if app.should_quit {
+            break;
+        }
+    }
+
+    // Restore terminal
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+
+    Ok(())
+}
