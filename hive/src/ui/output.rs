@@ -2,7 +2,9 @@
 
 use crate::app::{App, FocusedPanel};
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
+use ratatui::widgets::{
+    Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap,
+};
 
 pub struct OutputPanel<'a> {
     app: &'a App,
@@ -22,20 +24,32 @@ impl<'a> OutputPanel<'a> {
             Style::default().fg(Color::DarkGray)
         };
 
-        // Build title with scroll indicator
+        // Build title with session name and scroll indicator
         let total_lines = self.app.output_line_count;
-        let visible_height = area.height.saturating_sub(4) as usize; // Account for borders and input line
+        let visible_height = area.height.saturating_sub(4) as usize;
+
+        let session_name = self
+            .app
+            .selected_session_data()
+            .map(|s| s.name.as_str())
+            .unwrap_or("none");
+
+        let title = format!(" Output: {} ", session_name);
 
         let scroll_status = if self.app.output_auto_scroll {
             " [AUTO] ".to_string()
         } else if total_lines > visible_height {
-            format!(" [{}..{}] ", self.app.output_scroll + 1, (self.app.output_scroll + visible_height).min(total_lines))
+            format!(
+                " [{}..{}] ",
+                self.app.output_scroll + 1,
+                (self.app.output_scroll + visible_height).min(total_lines)
+            )
         } else {
             String::new()
         };
 
         let block = Block::default()
-            .title(" Output ")
+            .title(title)
             .title_bottom(Line::from(scroll_status).right_aligned())
             .borders(Borders::ALL)
             .border_style(border_style);
@@ -52,35 +66,26 @@ impl<'a> OutputPanel<'a> {
         // Render the block first
         frame.render_widget(block, area);
 
-        // Mock output data with timestamps
-        let output_lines = vec![
-            Line::from(vec![
-                Span::styled("[15:42:03] ", Style::default().fg(Color::DarkGray)),
-                Span::raw("Running tests..."),
-            ]),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("[15:42:05] ", Style::default().fg(Color::DarkGray)),
-                Span::styled("✓ ", Style::default().fg(Color::Green)),
-                Span::raw("42/42 tests passed"),
-            ]),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("[15:42:06] ", Style::default().fg(Color::DarkGray)),
-                Span::raw("Building release..."),
-            ]),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("[15:42:10] ", Style::default().fg(Color::DarkGray)),
-                Span::styled("✓ ", Style::default().fg(Color::Green)),
-                Span::raw("Completed successfully"),
-            ]),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("[15:42:11] ", Style::default().fg(Color::DarkGray)),
-                Span::raw("Deploying to staging..."),
-            ]),
-        ];
+        // Convert output lines to ratatui Lines
+        let output_lines: Vec<Line> = if self.app.output_lines.is_empty() {
+            vec![
+                Line::from(Span::styled(
+                    "No output yet...",
+                    Style::default().fg(Color::DarkGray),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Select a session to view its output",
+                    Style::default().fg(Color::DarkGray),
+                )),
+            ]
+        } else {
+            self.app
+                .output_lines
+                .iter()
+                .map(|line| Line::from(line.as_str()))
+                .collect()
+        };
 
         // Apply scroll offset
         let scroll_offset = self.app.output_scroll;
@@ -90,22 +95,32 @@ impl<'a> OutputPanel<'a> {
             .take(chunks[0].height as usize)
             .collect();
 
-        let output_paragraph = Paragraph::new(visible_lines)
-            .wrap(Wrap { trim: false });
+        let output_paragraph = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
 
         frame.render_widget(output_paragraph, chunks[0]);
 
         // Render input line at bottom
-        let input_style = if is_focused {
+        let input_style = if is_focused && self.app.command_mode {
+            Style::default().fg(Color::Yellow)
+        } else if is_focused {
             Style::default().fg(Color::Green)
         } else {
             Style::default().fg(Color::DarkGray)
         };
 
         let cursor = if is_focused { "_" } else { "" };
+        let input_content = if self.app.command_mode {
+            format!("{}{}", self.app.command_input, cursor)
+        } else {
+            cursor.to_string()
+        };
+
         let input_line = Paragraph::new(Line::from(vec![
             Span::styled("> ", input_style),
-            Span::styled(cursor, Style::default().add_modifier(Modifier::SLOW_BLINK)),
+            Span::styled(
+                input_content,
+                Style::default().add_modifier(Modifier::SLOW_BLINK),
+            ),
         ]));
 
         frame.render_widget(input_line, chunks[1]);
@@ -118,10 +133,9 @@ impl<'a> OutputPanel<'a> {
                 .track_symbol(Some("│"))
                 .thumb_symbol("█");
 
-            let mut scrollbar_state = ScrollbarState::new(total_lines)
-                .position(self.app.output_scroll);
+            let mut scrollbar_state =
+                ScrollbarState::new(total_lines).position(self.app.output_scroll);
 
-            // Render scrollbar in the output content area
             let scrollbar_area = Rect {
                 x: area.x + area.width - 2,
                 y: area.y + 1,

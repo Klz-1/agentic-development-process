@@ -1,93 +1,11 @@
 //! Files panel - displays file tree with git status
 
 use crate::app::{App, FocusedPanel};
+use crate::files::{FileKind, GitStatus};
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState};
-
-/// Mock file entry for demonstration
-struct MockFileEntry {
-    name: &'static str,
-    is_dir: bool,
-    is_expanded: bool,
-    depth: usize,
-    git_status: Option<GitDisplayStatus>,
-    is_last: bool, // Is this the last item at its depth level
-}
-
-#[derive(Clone, Copy)]
-enum GitDisplayStatus {
-    Modified,
-    Staged,
-    Untracked,
-}
-
-impl MockFileEntry {
-    fn to_list_item(&self) -> ListItem<'static> {
-        // Build tree indentation
-        let mut prefix = String::new();
-        for _ in 0..self.depth.saturating_sub(1) {
-            prefix.push_str("│   ");
-        }
-
-        // Add connector for non-root items
-        if self.depth > 0 {
-            if self.is_last {
-                prefix.push_str("└── ");
-            } else {
-                prefix.push_str("├── ");
-            }
-        }
-
-        // Build the icon for directories/files
-        let icon = if self.is_dir {
-            if self.is_expanded {
-                "📂 " // Open folder
-            } else {
-                "📁 " // Closed folder
-            }
-        } else {
-            "📄 " // File
-        };
-
-        // Git status indicator
-        let git_text = match self.git_status {
-            Some(GitDisplayStatus::Modified) => " [M]",
-            Some(GitDisplayStatus::Staged) => " [S]",
-            Some(GitDisplayStatus::Untracked) => " [+]",
-            None => "",
-        };
-
-        let git_style = match self.git_status {
-            Some(GitDisplayStatus::Modified) => Style::default().fg(Color::Yellow),
-            Some(GitDisplayStatus::Staged) => Style::default().fg(Color::Green),
-            Some(GitDisplayStatus::Untracked) => Style::default().fg(Color::Cyan),
-            None => Style::default(),
-        };
-
-        // Build the full display text
-        let display = format!("{}{}{}{}", prefix, icon, self.name, git_text);
-
-        // Color the different parts
-        let styled_line = if self.git_status.is_some() {
-            // Find where git status starts
-            let git_start = display.len() - git_text.len();
-            Line::from(vec![
-                Span::styled(display[..prefix.len()].to_string(), Style::default().fg(Color::DarkGray)),
-                Span::styled(icon.to_string(), if self.is_dir { Style::default().fg(Color::Blue) } else { Style::default() }),
-                Span::raw(self.name.to_string()),
-                Span::styled(display[git_start..].to_string(), git_style),
-            ])
-        } else {
-            Line::from(vec![
-                Span::styled(prefix, Style::default().fg(Color::DarkGray)),
-                Span::styled(icon.to_string(), if self.is_dir { Style::default().fg(Color::Blue) } else { Style::default() }),
-                Span::raw(self.name.to_string()),
-            ])
-        };
-
-        ListItem::new(styled_line)
-    }
-}
+use ratatui::widgets::{
+    Block, Borders, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState,
+};
 
 pub struct FilesPanel<'a> {
     app: &'a App,
@@ -116,29 +34,91 @@ impl<'a> FilesPanel<'a> {
             String::new()
         };
 
+        // Show hidden files indicator
+        let hidden_indicator = if self.app.file_tree.show_hidden {
+            " [.*] "
+        } else {
+            ""
+        };
+
         let block = Block::default()
-            .title(" Files ")
+            .title(format!(" Files{}", hidden_indicator))
             .title_bottom(Line::from(scroll_indicator).right_aligned())
             .borders(Borders::ALL)
             .border_style(border_style);
 
-        // Mock file tree data
-        let files = vec![
-            MockFileEntry { name: "~/projects/webapp", is_dir: true, is_expanded: true, depth: 0, git_status: None, is_last: true },
-            MockFileEntry { name: "src", is_dir: true, is_expanded: true, depth: 1, git_status: None, is_last: false },
-            MockFileEntry { name: "main.rs", is_dir: false, is_expanded: false, depth: 2, git_status: None, is_last: false },
-            MockFileEntry { name: "lib.rs", is_dir: false, is_expanded: false, depth: 2, git_status: Some(GitDisplayStatus::Modified), is_last: false },
-            MockFileEntry { name: "utils.rs", is_dir: false, is_expanded: false, depth: 2, git_status: Some(GitDisplayStatus::Modified), is_last: true },
-            MockFileEntry { name: "tests", is_dir: true, is_expanded: false, depth: 1, git_status: None, is_last: false },
-            MockFileEntry { name: "Cargo.toml", is_dir: false, is_expanded: false, depth: 1, git_status: None, is_last: false },
-            MockFileEntry { name: "README.md", is_dir: false, is_expanded: false, depth: 1, git_status: Some(GitDisplayStatus::Staged), is_last: false },
-            MockFileEntry { name: "CHANGELOG.md", is_dir: false, is_expanded: false, depth: 1, git_status: Some(GitDisplayStatus::Untracked), is_last: true },
-        ];
-
-        // Build list items
-        let items: Vec<ListItem> = files
+        // Build list items from real file tree
+        let items: Vec<ListItem> = self
+            .app
+            .file_tree
+            .entries
             .iter()
-            .map(|f| f.to_list_item())
+            .enumerate()
+            .map(|(idx, entry)| {
+                let name = entry
+                    .path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy();
+
+                // Build tree indentation
+                let mut prefix = String::new();
+                for _ in 0..entry.depth.saturating_sub(1) {
+                    prefix.push_str("│   ");
+                }
+
+                // Add connector for non-root items
+                if entry.depth > 0 {
+                    // Check if this is the last item at this depth
+                    let is_last = self.is_last_at_depth(idx, entry.depth);
+                    if is_last {
+                        prefix.push_str("└── ");
+                    } else {
+                        prefix.push_str("├── ");
+                    }
+                }
+
+                // Build the icon for directories/files
+                let is_expanded = self.app.file_tree.is_expanded(&entry.path);
+                let icon = match entry.kind {
+                    FileKind::Directory => {
+                        if is_expanded {
+                            "📂 " // Open folder
+                        } else {
+                            "📁 " // Closed folder
+                        }
+                    }
+                    FileKind::File => "📄 ", // File
+                };
+
+                // Git status indicator
+                let (git_text, git_style) = match entry.git_status {
+                    Some(GitStatus::Modified) => {
+                        (" [M]", Style::default().fg(Color::Yellow))
+                    }
+                    Some(GitStatus::Staged) => (" [S]", Style::default().fg(Color::Green)),
+                    Some(GitStatus::Untracked) => (" [+]", Style::default().fg(Color::Cyan)),
+                    Some(GitStatus::Conflicted) => (" [!]", Style::default().fg(Color::Red)),
+                    None => ("", Style::default()),
+                };
+
+                // Build styled spans
+                let styled_line = Line::from(vec![
+                    Span::styled(prefix, Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        icon.to_string(),
+                        if entry.kind == FileKind::Directory {
+                            Style::default().fg(Color::Blue)
+                        } else {
+                            Style::default()
+                        },
+                    ),
+                    Span::raw(name.to_string()),
+                    Span::styled(git_text.to_string(), git_style),
+                ]);
+
+                ListItem::new(styled_line)
+            })
             .collect();
 
         let list = List::new(items)
@@ -146,7 +126,7 @@ impl<'a> FilesPanel<'a> {
             .highlight_style(
                 Style::default()
                     .add_modifier(Modifier::BOLD)
-                    .bg(Color::DarkGray)
+                    .bg(Color::DarkGray),
             )
             .highlight_symbol("▶ ");
 
@@ -163,8 +143,8 @@ impl<'a> FilesPanel<'a> {
                 .track_symbol(Some("│"))
                 .thumb_symbol("█");
 
-            let mut scrollbar_state = ScrollbarState::new(total_items)
-                .position(self.app.files_scroll);
+            let mut scrollbar_state =
+                ScrollbarState::new(total_items).position(self.app.files_scroll);
 
             let scrollbar_area = Rect {
                 x: area.x + area.width - 1,
@@ -175,5 +155,24 @@ impl<'a> FilesPanel<'a> {
 
             frame.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);
         }
+    }
+
+    /// Check if the entry at `idx` is the last one at the given depth
+    fn is_last_at_depth(&self, idx: usize, depth: usize) -> bool {
+        // Look ahead to see if there are any more items at the same depth
+        for i in (idx + 1)..self.app.file_tree.entries.len() {
+            let next_entry = &self.app.file_tree.entries[i];
+            if next_entry.depth < depth {
+                // We went up in the tree, so this was the last
+                return true;
+            }
+            if next_entry.depth == depth {
+                // There's another item at the same depth
+                return false;
+            }
+            // next_entry.depth > depth means we're in a subdirectory, continue
+        }
+        // No more items, so this is the last
+        true
     }
 }

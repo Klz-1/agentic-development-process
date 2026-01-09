@@ -2,7 +2,10 @@
 
 use crate::config::Config;
 use crate::event::{Event, EventHandler};
+use crate::files::{get_git_status, FileKind, FileTree};
+use crate::tmux::{OutputCapture, Session, TmuxClient};
 use crate::ui;
+use crate::utils::RingBuffer;
 use anyhow::Result;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
@@ -11,6 +14,9 @@ use crossterm::{
 };
 use ratatui::prelude::*;
 use std::io;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Which panel currently has focus
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -89,10 +95,36 @@ pub struct App {
     pub output_line_count: usize,
     /// Last known terminal width
     pub terminal_width: u16,
+    /// Real tmux sessions
+    pub sessions: Vec<Session>,
+    /// Tmux client for interaction
+    pub tmux_client: TmuxClient,
+    /// Output capture manager
+    pub output_capture: OutputCapture,
+    /// Output buffer for selected session
+    pub output_buffer: Arc<Mutex<RingBuffer<String>>>,
+    /// Cached output lines for rendering (updated from buffer)
+    pub output_lines: Vec<String>,
+    /// Command input buffer
+    pub command_input: String,
+    /// Whether we're in command input mode
+    pub command_mode: bool,
+    /// File tree for the files panel
+    pub file_tree: FileTree,
 }
 
 impl App {
     pub fn new(config: Config) -> Self {
+        // Create file tree for current directory
+        let mut file_tree = FileTree::new(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+        // Update git status for file tree
+        if let Ok(status) = get_git_status(&file_tree.root) {
+            file_tree.update_git_status(&status);
+        }
+
+        let file_count = file_tree.entries.len();
+
         Self {
             config,
             should_quit: false,
@@ -108,11 +140,124 @@ impl App {
             resize_state: ResizeState::None,
             sessions_scroll: 0,
             files_scroll: 0,
-            session_count: 8,  // Mock data count
-            file_count: 9,     // Mock data count
-            output_line_count: 9, // Mock data count
+            session_count: 0,
+            file_count,
+            output_line_count: 0,
             terminal_width: 80,
+            sessions: Vec::new(),
+            tmux_client: TmuxClient::new(),
+            output_capture: OutputCapture::new(1000),
+            output_buffer: Arc::new(Mutex::new(RingBuffer::new(1000))),
+            output_lines: Vec::new(),
+            command_input: String::new(),
+            command_mode: false,
+            file_tree,
         }
+    }
+
+    /// Set the file tree root to a new path and refresh
+    #[allow(dead_code)]
+    pub fn set_file_root(&mut self, path: PathBuf) {
+        self.file_tree = FileTree::new(path);
+        self.update_file_tree_git_status();
+        self.file_count = self.file_tree.entries.len();
+        self.selected_file = 0;
+        self.files_scroll = 0;
+    }
+
+    /// Update git status for all file tree entries
+    pub fn update_file_tree_git_status(&mut self) {
+        if let Ok(status) = get_git_status(&self.file_tree.root) {
+            self.file_tree.update_git_status(&status);
+        }
+    }
+
+    /// Toggle expansion of the selected directory
+    pub fn toggle_file_expand(&mut self) {
+        if let Some(entry) = self.file_tree.entries.get(self.selected_file) {
+            if entry.kind == FileKind::Directory {
+                let path = entry.path.clone();
+                self.file_tree.toggle_expand(&path);
+                self.update_file_tree_git_status();
+                self.file_count = self.file_tree.entries.len();
+            }
+        }
+    }
+
+    /// Toggle showing hidden files
+    pub fn toggle_hidden_files(&mut self) {
+        self.file_tree.toggle_hidden();
+        self.update_file_tree_git_status();
+        self.file_count = self.file_tree.entries.len();
+        // Clamp selected file if needed
+        if self.selected_file >= self.file_count && self.file_count > 0 {
+            self.selected_file = self.file_count - 1;
+        }
+    }
+
+    /// Refresh session list from tmux
+    pub async fn refresh_sessions(&mut self) -> Result<()> {
+        self.sessions = self.tmux_client.list_sessions().await?;
+        self.session_count = self.sessions.len();
+
+        // Clamp selected session if sessions were removed
+        if self.selected_session >= self.session_count && self.session_count > 0 {
+            self.selected_session = self.session_count - 1;
+        }
+
+        Ok(())
+    }
+
+    /// Refresh output from buffer
+    pub async fn refresh_output(&mut self) {
+        let buffer = self.output_buffer.lock().await;
+        self.output_lines = buffer.iter().cloned().collect();
+        self.output_line_count = self.output_lines.len();
+
+        // Auto-scroll to bottom if enabled
+        if self.output_auto_scroll && self.output_line_count > 0 {
+            self.output_scroll = self.output_line_count.saturating_sub(1);
+        }
+    }
+
+    /// Get the currently selected session
+    pub fn selected_session_data(&self) -> Option<&Session> {
+        self.sessions.get(self.selected_session)
+    }
+
+    /// Send a command to the selected session
+    #[allow(dead_code)]
+    pub async fn send_command(&mut self) -> Result<()> {
+        if self.command_input.is_empty() {
+            return Ok(());
+        }
+
+        if let Some(session) = self.selected_session_data() {
+            self.tmux_client
+                .send_keys(&session.name, &self.command_input)
+                .await?;
+            self.command_input.clear();
+        }
+
+        Ok(())
+    }
+
+    /// Send interrupt (Ctrl+C) to the selected session
+    #[allow(dead_code)]
+    pub async fn send_interrupt(&self) -> Result<()> {
+        if let Some(session) = self.selected_session_data() {
+            self.tmux_client.send_interrupt(&session.name).await?;
+        }
+        Ok(())
+    }
+
+    /// Attach to the selected session (exits TUI)
+    #[allow(dead_code)]
+    pub fn attach_to_session(&self) -> Result<()> {
+        if let Some(session) = self.selected_session_data() {
+            self.tmux_client.attach(&session.name)?;
+        }
+        Ok(())
     }
 
     /// Focus a specific panel
@@ -240,6 +385,9 @@ impl App {
             KeyCode::Char('p') if self.focused_panel == FocusedPanel::Output => {
                 self.output_auto_scroll = !self.output_auto_scroll;
             }
+            KeyCode::Char('.') if self.focused_panel == FocusedPanel::Files => {
+                self.toggle_hidden_files();
+            }
             KeyCode::Esc => {
                 // Cancel any ongoing operation
                 self.resize_state = ResizeState::None;
@@ -357,8 +505,31 @@ impl App {
     }
 
     fn on_tick(&mut self) {
-        // Refresh session data, output, etc.
-        // In a real implementation, this would poll tmux for updates
+        // Note: Actual refresh happens in the async run loop
+        // This is called synchronously and just marks that a tick occurred
+    }
+
+    /// Async tick handler - called from main loop
+    pub async fn on_tick_async(&mut self) {
+        // Refresh session data
+        if let Err(e) = self.refresh_sessions().await {
+            tracing::warn!("Failed to refresh sessions: {}", e);
+        }
+
+        // Refresh output buffer
+        self.refresh_output().await;
+    }
+
+    /// Start output capture for the selected session
+    pub fn start_output_capture(&self) {
+        if let Some(session) = self.selected_session_data() {
+            let _handle = self.output_capture.start_capture(
+                session.name.clone(),
+                Arc::clone(&self.output_buffer),
+                500, // Poll every 500ms
+            );
+            // Note: In a full implementation, we'd store the handle to stop it when switching sessions
+        }
     }
 
     fn navigate_up(&mut self) {
@@ -482,7 +653,8 @@ impl App {
                 // TODO: Send command
             }
             FocusedPanel::Files => {
-                // TODO: Open/preview file
+                // Toggle expansion if directory, otherwise could preview file
+                self.toggle_file_expand();
             }
         }
     }
@@ -500,8 +672,16 @@ pub async fn run(config: Config) -> Result<()> {
     // Create app state
     let mut app = App::new(config);
 
+    // Initial session load
+    if let Err(e) = app.refresh_sessions().await {
+        tracing::warn!("Failed to load initial sessions: {}", e);
+    }
+
+    // Start output capture for first session if available
+    app.start_output_capture();
+
     // Create event handler
-    let events = EventHandler::new(250); // 250ms tick rate
+    let events = EventHandler::new(500); // 500ms tick rate to match output polling
 
     // Main loop
     loop {
@@ -510,7 +690,16 @@ pub async fn run(config: Config) -> Result<()> {
 
         // Handle events
         let event = events.next()?;
+
+        // Check if this is a tick event for async refresh
+        let is_tick = matches!(event, Event::Tick);
+
         app.handle_event(event);
+
+        // Async refresh on tick
+        if is_tick {
+            app.on_tick_async().await;
+        }
 
         if app.should_quit {
             break;
