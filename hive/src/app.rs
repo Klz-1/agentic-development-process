@@ -3,7 +3,7 @@
 use crate::config::Config;
 use crate::event::{Event, EventHandler};
 use crate::files::{get_git_status, FileKind, FileTree};
-use crate::tmux::{OutputCapture, Session, TmuxClient};
+use crate::tmux::{CaptureHandle, OutputCapture, Session, TmuxClient};
 use crate::ui;
 use crate::utils::RingBuffer;
 use anyhow::Result;
@@ -117,6 +117,10 @@ pub struct App {
     pub alert_active: bool,
     /// Last alert message
     pub alert_message: Option<String>,
+    /// Handle to current output capture task
+    capture_handle: Option<CaptureHandle>,
+    /// Name of session currently being captured
+    captured_session: Option<String>,
 }
 
 impl App {
@@ -138,7 +142,7 @@ impl App {
             selected_session: 0,
             selected_file: 0,
             output_scroll: 0,
-            output_auto_scroll: true,
+            output_auto_scroll: false, // Start from top
             show_help: false,
             show_fuzzy_finder: false,
             fuzzy_input: String::new(),
@@ -161,6 +165,8 @@ impl App {
             pending_editor_file: None,
             alert_active: false,
             alert_message: None,
+            capture_handle: None,
+            captured_session: None,
         }
     }
 
@@ -260,7 +266,7 @@ impl App {
 
         // Sync file tree to selected session if this is first load or sessions changed
         if old_session_count == 0 && self.session_count > 0 {
-            self.sync_file_tree_to_session();
+            self.sync_to_session();
         }
 
         Ok(())
@@ -523,7 +529,7 @@ impl App {
                     self.selected_session = index;
                     // Sync file tree if selection changed
                     if old_selection != self.selected_session {
-                        self.sync_file_tree_to_session();
+                        self.sync_to_session();
                     }
                 }
             }
@@ -550,7 +556,7 @@ impl App {
                 self.selected_session = self.selected_session.saturating_sub(1);
             }
             if old_selection != self.selected_session {
-                self.sync_file_tree_to_session();
+                self.sync_to_session();
             }
         } else if x < output_end {
             self.output_auto_scroll = false;
@@ -572,7 +578,7 @@ impl App {
             self.sessions_scroll = (self.sessions_scroll + 3).min(self.session_count.saturating_sub(1));
             self.selected_session = (self.selected_session + 1).min(self.session_count.saturating_sub(1));
             if old_selection != self.selected_session {
-                self.sync_file_tree_to_session();
+                self.sync_to_session();
             }
         } else if x < output_end {
             self.output_auto_scroll = false;
@@ -599,16 +605,44 @@ impl App {
         self.refresh_output().await;
     }
 
-    /// Start output capture for the selected session
-    pub fn start_output_capture(&self) {
+    /// Start or switch output capture for the selected session
+    pub fn start_output_capture(&mut self) {
         if let Some(session) = self.selected_session_data() {
-            let _handle = self.output_capture.start_capture(
-                session.name.clone(),
+            let session_name = session.name.clone();
+
+            // Skip if already capturing this session
+            if self.captured_session.as_ref() == Some(&session_name) {
+                return;
+            }
+
+            // Stop previous capture if any
+            if let Some(handle) = self.capture_handle.take() {
+                handle.stop();
+            }
+
+            // Clear the output buffer for fresh capture
+            self.output_buffer = Arc::new(Mutex::new(RingBuffer::new(1000)));
+            self.output_lines.clear();
+            self.output_scroll = 0;
+            self.output_line_count = 0;
+            self.output_auto_scroll = false; // Start from top, not bottom
+
+            // Start new capture
+            let handle = self.output_capture.start_capture(
+                session_name.clone(),
                 Arc::clone(&self.output_buffer),
                 500, // Poll every 500ms
             );
-            // Note: In a full implementation, we'd store the handle to stop it when switching sessions
+
+            self.capture_handle = Some(handle);
+            self.captured_session = Some(session_name);
         }
+    }
+
+    /// Sync both file tree and output to the currently selected session
+    pub fn sync_to_session(&mut self) {
+        self.sync_file_tree_to_session();
+        self.start_output_capture();
     }
 
     fn navigate_up(&mut self) {
@@ -622,7 +656,7 @@ impl App {
                 }
                 // Sync file tree if selection changed
                 if old_selection != self.selected_session {
-                    self.sync_file_tree_to_session();
+                    self.sync_to_session();
                 }
             }
             FocusedPanel::Output => {
@@ -648,7 +682,7 @@ impl App {
                 }
                 // Sync file tree if selection changed
                 if old_selection != self.selected_session {
-                    self.sync_file_tree_to_session();
+                    self.sync_to_session();
                 }
             }
             FocusedPanel::Output => {
@@ -673,7 +707,7 @@ impl App {
                 self.selected_session = self.selected_session.saturating_sub(page_size);
                 self.sessions_scroll = self.sessions_scroll.saturating_sub(page_size);
                 if old_selection != self.selected_session {
-                    self.sync_file_tree_to_session();
+                    self.sync_to_session();
                 }
             }
             FocusedPanel::Output => {
@@ -695,7 +729,7 @@ impl App {
                 self.selected_session = (self.selected_session + page_size).min(self.session_count.saturating_sub(1));
                 self.sessions_scroll = (self.sessions_scroll + page_size).min(self.session_count.saturating_sub(1));
                 if old_selection != self.selected_session {
-                    self.sync_file_tree_to_session();
+                    self.sync_to_session();
                 }
             }
             FocusedPanel::Output => {
@@ -716,7 +750,7 @@ impl App {
                 self.selected_session = 0;
                 self.sessions_scroll = 0;
                 if old_selection != self.selected_session {
-                    self.sync_file_tree_to_session();
+                    self.sync_to_session();
                 }
             }
             FocusedPanel::Output => {
@@ -736,7 +770,7 @@ impl App {
                 let old_selection = self.selected_session;
                 self.selected_session = self.session_count.saturating_sub(1);
                 if old_selection != self.selected_session {
-                    self.sync_file_tree_to_session();
+                    self.sync_to_session();
                 }
             }
             FocusedPanel::Output => {
