@@ -493,27 +493,27 @@ impl App {
     fn handle_panel_click(&mut self, x: u16, y: u16) {
         let (sessions_end, output_end) = self.get_panel_borders();
 
+        // Account for tab bar (1 line) and panel border (1 line)
+        // y=0 is tab bar, y=1 is panel title/border, y>=2 is content
+        let content_y = y.saturating_sub(2) as usize;
+
         if x < sessions_end {
             self.focused_panel = FocusedPanel::Sessions;
-            // Select item based on y position (accounting for border)
-            if y > 0 {
-                let index = (y - 1) as usize + self.sessions_scroll;
-                if index < self.session_count {
+            // Sessions are now simple 1 row per session
+            if !self.sessions.is_empty() {
+                let index = content_y + self.sessions_scroll;
+                if index < self.sessions.len() {
                     self.selected_session = index;
                 }
             }
         } else if x < output_end {
             self.focused_panel = FocusedPanel::Output;
-            // Clicking output disables auto-scroll
             self.output_auto_scroll = false;
         } else {
             self.focused_panel = FocusedPanel::Files;
-            // Select item based on y position (accounting for border)
-            if y > 0 {
-                let index = (y - 1) as usize + self.files_scroll;
-                if index < self.file_count {
-                    self.selected_file = index;
-                }
+            let index = content_y + self.files_scroll;
+            if index < self.file_count {
+                self.selected_file = index;
             }
         }
     }

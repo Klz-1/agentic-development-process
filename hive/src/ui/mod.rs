@@ -10,7 +10,9 @@ mod status_bar;
 mod tab_bar;
 
 use crate::app::App;
+use crate::theme;
 use ratatui::prelude::*;
+use ratatui::widgets::Block;
 
 pub use files::FilesPanel;
 pub use fuzzy::FuzzyFinderOverlay;
@@ -23,6 +25,10 @@ pub use tab_bar::TabBar;
 
 /// Draw the entire UI
 pub fn draw(frame: &mut Frame, app: &App) {
+    // Fill entire screen with dark background
+    let bg_block = Block::default().style(Style::default().bg(theme::bg::DARK));
+    frame.render_widget(bg_block, frame.area());
+
     let chunks = create_layout_from_percentages(frame.area(), app.panel_widths);
 
     // Draw tab bar at the top

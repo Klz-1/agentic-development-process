@@ -7,6 +7,7 @@ mod app;
 mod config;
 mod event;
 mod files;
+pub mod theme;
 mod tmux;
 mod ui;
 mod utils;
@@ -183,37 +184,17 @@ async fn main() -> Result<()> {
 
     tracing::debug!("Configuration loaded: {:?}", config.general);
 
-    // Run the application with panic handler
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        tokio::runtime::Handle::current().block_on(async {
-            app::run(config).await
-        })
-    }));
-
-    match result {
-        Ok(Ok(())) => {
+    // Run the application
+    match app::run(config).await {
+        Ok(()) => {
             tracing::info!("Hive exited normally");
             Ok(())
         }
-        Ok(Err(e)) => {
+        Err(e) => {
             tracing::error!("Application error: {:?}", e);
-            Err(e).context("Hive encountered an error")
-        }
-        Err(panic) => {
-            // Try to extract panic message
-            let msg = if let Some(s) = panic.downcast_ref::<&str>() {
-                s.to_string()
-            } else if let Some(s) = panic.downcast_ref::<String>() {
-                s.clone()
-            } else {
-                "Unknown panic".to_string()
-            };
-
-            tracing::error!("Panic: {}", msg);
-            eprintln!("\nHive crashed unexpectedly: {}", msg);
-            eprintln!("Please report this issue with the log file from ~/.local/share/hive/hive.log");
-
-            std::process::exit(1);
+            eprintln!("\nHive encountered an error: {}", e);
+            eprintln!("Check the log file at ~/.local/share/hive/hive.log for details");
+            Err(e)
         }
     }
 }

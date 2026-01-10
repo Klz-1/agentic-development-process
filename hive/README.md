@@ -34,12 +34,14 @@ cargo install --path .
 ## Quick Start
 
 1. Start some tmux sessions:
+
    ```bash
    tmux new-session -d -s project/feature-1
    tmux new-session -d -s project/feature-2
    ```
 
 2. Run hive:
+
    ```bash
    hive
    ```
@@ -52,18 +54,18 @@ cargo install --path .
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|-----|--------|
-| `Tab` / `Shift+Tab` | Switch between panels |
-| `↑` / `↓` or `j` / `k` | Navigate up/down |
-| `Enter` | Primary action (attach, expand, select) |
-| `?` | Show help overlay |
-| `/` | Open fuzzy finder |
-| `e` | Open file in editor (Files panel) |
-| `.` | Toggle hidden files (Files panel) |
-| `p` | Toggle auto-scroll (Output panel) |
-| `q` | Quit |
-| `Esc` | Cancel / close overlay / clear alert |
+| Key                    | Action                                  |
+| ---------------------- | --------------------------------------- |
+| `Tab` / `Shift+Tab`    | Switch between panels                   |
+| `↑` / `↓` or `j` / `k` | Navigate up/down                        |
+| `Enter`                | Primary action (attach, expand, select) |
+| `?`                    | Show help overlay                       |
+| `/`                    | Open fuzzy finder                       |
+| `e`                    | Open file in editor (Files panel)       |
+| `.`                    | Toggle hidden files (Files panel)       |
+| `p`                    | Toggle auto-scroll (Output panel)       |
+| `q`                    | Quit                                    |
+| `Esc`                  | Cancel / close overlay / clear alert    |
 
 See `?` in the app for full keybinding reference.
 

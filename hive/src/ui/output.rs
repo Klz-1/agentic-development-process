@@ -4,6 +4,7 @@
 //! session duration and data transfer metrics.
 
 use crate::app::{App, FocusedPanel};
+use crate::theme::{self, Theme};
 use crate::tmux::SessionStatus;
 use chrono::Utc;
 use ratatui::prelude::*;
@@ -23,13 +24,6 @@ impl<'a> OutputPanel<'a> {
     pub fn render(self, frame: &mut Frame, area: Rect) {
         let is_focused = self.app.focused_panel == FocusedPanel::Output;
 
-        let border_style = if is_focused {
-            Style::default().fg(Color::Cyan)
-        } else {
-            Style::default().fg(Color::DarkGray)
-        };
-
-        // Build title with session name
         let session_name = self
             .app
             .selected_session_data()
@@ -40,12 +34,13 @@ impl<'a> OutputPanel<'a> {
 
         let block = Block::default()
             .title(title)
+            .title_style(Theme::title_style(is_focused))
             .borders(Borders::ALL)
-            .border_style(border_style);
+            .border_style(Theme::border_style(is_focused))
+            .style(Theme::panel_bg());
 
         let inner_area = block.inner(area);
 
-        // Split inner area: output content + stats bar + input line
         let chunks = Layout::vertical([
             Constraint::Min(1),    // Output content
             Constraint::Length(1), // Stats bar
@@ -53,36 +48,32 @@ impl<'a> OutputPanel<'a> {
         ])
         .split(inner_area);
 
-        // Render the block first
         frame.render_widget(block, area);
 
-        // Calculate visible height for scrolling
         let total_lines = self.app.output_line_count;
         let visible_height = chunks[0].height as usize;
 
-        // Convert output lines to ratatui Lines
         let output_lines: Vec<Line> = if self.app.output_lines.is_empty() {
             vec![
                 Line::from(""),
                 Line::from(Span::styled(
                     "  No output yet...",
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg(theme::text::MUTED),
                 )),
                 Line::from(""),
                 Line::from(Span::styled(
                     "  Select a session to view its output",
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg(theme::text::MUTED),
                 )),
             ]
         } else {
             self.app
                 .output_lines
                 .iter()
-                .map(|line| Line::from(format!(" {}", line)))
+                .map(|line| Line::from(Span::styled(format!(" {}", line), Style::default().fg(theme::text::PRIMARY))))
                 .collect()
         };
 
-        // Apply scroll offset
         let scroll_offset = self.app.output_scroll;
         let visible_lines: Vec<Line> = output_lines
             .into_iter()
@@ -93,16 +84,15 @@ impl<'a> OutputPanel<'a> {
         let output_paragraph = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
         frame.render_widget(output_paragraph, chunks[0]);
 
-        // Render stats bar
         self.render_stats_bar(frame, chunks[1]);
 
-        // Render input line at bottom
+        // Input line
         let input_style = if is_focused && self.app.command_mode {
-            Style::default().fg(Color::Yellow)
+            Style::default().fg(theme::accent::YELLOW)
         } else if is_focused {
-            Style::default().fg(Color::Green)
+            Style::default().fg(theme::text::SECONDARY)
         } else {
-            Style::default().fg(Color::DarkGray)
+            Style::default().fg(theme::text::MUTED)
         };
 
         let cursor = if is_focused { "_" } else { "" };
@@ -114,21 +104,20 @@ impl<'a> OutputPanel<'a> {
 
         let input_line = Paragraph::new(Line::from(vec![
             Span::styled(" > ", input_style),
-            Span::styled(
-                input_content,
-                Style::default().add_modifier(Modifier::SLOW_BLINK),
-            ),
+            Span::styled(input_content, Style::default().fg(theme::text::PRIMARY)),
         ]));
 
         frame.render_widget(input_line, chunks[2]);
 
-        // Render scrollbar if content exceeds visible area
+        // Scrollbar
         if total_lines > visible_height {
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                .begin_symbol(Some("▲"))
-                .end_symbol(Some("▼"))
-                .track_symbol(Some("│"))
-                .thumb_symbol("█");
+                .begin_symbol(None)
+                .end_symbol(None)
+                .track_symbol(Some(" "))
+                .thumb_symbol("▐")
+                .style(Theme::scrollbar_style())
+                .thumb_style(Theme::scrollbar_thumb_style());
 
             let mut scrollbar_state =
                 ScrollbarState::new(total_lines).position(self.app.output_scroll);
@@ -144,63 +133,56 @@ impl<'a> OutputPanel<'a> {
         }
     }
 
-    /// Render the stats bar showing session duration and metrics
     fn render_stats_bar(&self, frame: &mut Frame, area: Rect) {
         let mut spans: Vec<Span> = Vec::new();
 
-        // Separator line character
         spans.push(Span::styled(
             " ─ ",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(theme::border::DEFAULT),
         ));
 
-        // Session duration
         if let Some(session) = self.app.selected_session_data() {
             let duration = self.format_session_duration(session);
             spans.push(Span::styled(
                 "⊙ ",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(theme::text::MUTED),
             ));
             spans.push(Span::styled(
                 duration,
-                Style::default().fg(Color::Gray),
+                Style::default().fg(theme::text::SECONDARY),
             ));
 
-            // Data transfer stats (simulated - would come from real metrics)
             spans.push(Span::styled(
                 " │ ",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(theme::border::DEFAULT),
             ));
 
-            // Download indicator
             spans.push(Span::styled(
                 "↓",
-                Style::default().fg(Color::Green),
+                Style::default().fg(theme::accent::GREEN),
             ));
             spans.push(Span::styled(
                 format!("{}k ", self.estimate_data_received()),
-                Style::default().fg(Color::Gray),
+                Style::default().fg(theme::text::SECONDARY),
             ));
 
-            // Upload indicator
             spans.push(Span::styled(
                 "↑",
-                Style::default().fg(Color::Yellow),
+                Style::default().fg(theme::accent::PEACH),
             ));
             spans.push(Span::styled(
                 format!("{}k", self.estimate_data_sent()),
-                Style::default().fg(Color::Gray),
+                Style::default().fg(theme::text::SECONDARY),
             ));
 
-            // Scroll indicator
             if self.app.output_auto_scroll {
                 spans.push(Span::styled(
                     " │ ",
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg(theme::border::DEFAULT),
                 ));
                 spans.push(Span::styled(
                     "AUTO",
-                    Style::default().fg(Color::Cyan),
+                    Style::default().fg(theme::text::MUTED),
                 ));
             }
         }
@@ -210,11 +192,9 @@ impl<'a> OutputPanel<'a> {
         frame.render_widget(paragraph, area);
     }
 
-    /// Format session duration as human-readable string
     fn format_session_duration(&self, session: &crate::tmux::Session) -> String {
         let duration = match &session.status {
             SessionStatus::Running { .. } => {
-                // Calculate from session start (using last_activity as proxy)
                 Utc::now().signed_duration_since(session.last_activity)
             }
             SessionStatus::Idle { since } => {
@@ -242,20 +222,16 @@ impl<'a> OutputPanel<'a> {
         }
     }
 
-    /// Estimate data received (based on output buffer size)
     fn estimate_data_received(&self) -> String {
         let bytes: usize = self.app.output_lines.iter().map(|s| s.len()).sum();
         Self::format_data_size(bytes)
     }
 
-    /// Estimate data sent (based on commands sent - simplified)
     fn estimate_data_sent(&self) -> String {
-        // Simplified: estimate based on command input length
-        let bytes = self.app.command_input.len() * 10; // rough estimate
-        Self::format_data_size(bytes.max(100)) // minimum 100 bytes
+        let bytes = self.app.command_input.len() * 10;
+        Self::format_data_size(bytes.max(100))
     }
 
-    /// Format byte size as human-readable string
     fn format_data_size(bytes: usize) -> String {
         if bytes >= 1_000_000 {
             format!("{:.1}M", bytes as f64 / 1_000_000.0)
