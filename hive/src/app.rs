@@ -871,6 +871,11 @@ pub async fn run(config: Config) -> Result<()> {
     // Create app state
     let mut app = App::new(config);
 
+    // Get initial terminal size
+    if let Ok((width, _height)) = crossterm::terminal::size() {
+        app.terminal_width = width;
+    }
+
     // Initial session load
     if let Err(e) = app.refresh_sessions().await {
         tracing::warn!("Failed to load initial sessions: {}", e);
