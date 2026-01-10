@@ -9,14 +9,36 @@
 
 ## Phase Overview
 
-| Phase | Focus                | Deliverable                                      |
-| ----- | -------------------- | ------------------------------------------------ |
-| 0     | Project Setup        | Cargo project, CI, basic structure               |
-| 1     | Core TUI Shell       | Three-panel layout, navigation, keyboard/mouse   |
-| 2     | tmux Integration     | Session discovery, output streaming, interaction |
-| 3     | File Explorer        | Tree view, git status, preview                   |
-| 4     | Polish & Features    | Fuzzy finder, config, alerts, editor integration |
-| 5     | Production Hardening | Testing, docs, release pipeline                  |
+| Phase | Focus                | Deliverable                                      | Status      |
+| ----- | -------------------- | ------------------------------------------------ | ----------- |
+| 0     | Project Setup        | Cargo project, CI, basic structure               | ✅ Complete |
+| 1     | Core TUI Shell       | Three-panel layout, navigation, keyboard/mouse   | ✅ Complete |
+| 2     | tmux Integration     | Session discovery, output streaming, interaction | ✅ Complete |
+| 3     | File Explorer        | Tree view, git status, preview                   | ✅ Complete |
+| 4     | Polish & Features    | Fuzzy finder, config, alerts, editor integration | 🔄 In Progress |
+| 5     | Production Hardening | Testing, docs, release pipeline                  | ⏳ Pending  |
+
+---
+
+## Current Status (Updated 2026-01-10)
+
+**Phase 4 Progress:**
+
+| Feature | Status | Notes |
+| ------- | ------ | ----- |
+| 4.1 Fuzzy Finder | 🔄 Partial | UI exists, basic filtering works, nucleo not fully wired |
+| 4.2 Configuration | ✅ Done | TOML config loads from `~/.config/hive/config.toml` |
+| 4.3 Help Overlay | ✅ Done | `?` shows shortcuts, Esc dismisses |
+| 4.4 External Editor | ❌ Not Done | `e` key handler exists but no editor launch |
+| 4.5 Visual Alerts | 🔄 Partial | Color indicators exist, no sound/bell alerts |
+| 4.6 Status Bar | ✅ Enhanced | Model info, contextual hints, build status |
+| 4.7 Customizable Layout | 🔄 Partial | Panel widths adjustable, layout order fixed |
+
+**Recent Polish (this session):**
+- Added tab bar component for workspace switching
+- Converted sessions to hierarchical workspaces tree
+- Enhanced status bar with model info and key hints
+- Added progress/stats display to output panel
 
 ---
 
