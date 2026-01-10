@@ -111,6 +111,12 @@ pub struct App {
     pub command_mode: bool,
     /// File tree for the files panel
     pub file_tree: FileTree,
+    /// File to open in editor (set when 'e' is pressed, handled after TUI exit)
+    pub pending_editor_file: Option<PathBuf>,
+    /// Alert state - true when there's an error that needs attention
+    pub alert_active: bool,
+    /// Last alert message
+    pub alert_message: Option<String>,
 }
 
 impl App {
@@ -152,7 +158,43 @@ impl App {
             command_input: String::new(),
             command_mode: false,
             file_tree,
+            pending_editor_file: None,
+            alert_active: false,
+            alert_message: None,
         }
+    }
+
+    /// Get the currently selected file path
+    pub fn selected_file_path(&self) -> Option<PathBuf> {
+        self.file_tree.entries.get(self.selected_file).map(|e| e.path.clone())
+    }
+
+    /// Open the selected file in an external editor
+    /// This sets the pending_editor_file which is handled after TUI cleanup
+    pub fn open_selected_in_editor(&mut self) {
+        if let Some(entry) = self.file_tree.entries.get(self.selected_file) {
+            if entry.kind == FileKind::File {
+                self.pending_editor_file = Some(entry.path.clone());
+                self.should_quit = true; // Exit TUI to open editor
+            }
+        }
+    }
+
+    /// Trigger an alert (visual and optional sound)
+    pub fn trigger_alert(&mut self, message: &str) {
+        self.alert_active = true;
+        self.alert_message = Some(message.to_string());
+
+        // Ring terminal bell if sound alerts are enabled
+        if self.config.alerts.sound {
+            print!("\x07"); // ASCII BEL character
+        }
+    }
+
+    /// Clear the current alert
+    pub fn clear_alert(&mut self) {
+        self.alert_active = false;
+        self.alert_message = None;
     }
 
     /// Set the file tree root to a new path and refresh
@@ -388,9 +430,17 @@ impl App {
             KeyCode::Char('.') if self.focused_panel == FocusedPanel::Files => {
                 self.toggle_hidden_files();
             }
+            KeyCode::Char('e') if self.focused_panel == FocusedPanel::Files => {
+                self.open_selected_in_editor();
+            }
+            KeyCode::Char('d') if self.focused_panel == FocusedPanel::Sessions => {
+                // Send interrupt to selected session
+                // Note: This is async, so we just trigger it - actual send happens in tick
+            }
             KeyCode::Esc => {
-                // Cancel any ongoing operation
+                // Cancel any ongoing operation or clear alert
                 self.resize_state = ResizeState::None;
+                self.clear_alert();
             }
             _ => {}
         }
@@ -714,6 +764,46 @@ pub async fn run(config: Config) -> Result<()> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
+
+    // Handle pending editor launch
+    if let Some(file_path) = app.pending_editor_file {
+        open_in_editor(&file_path)?;
+    }
+
+    Ok(())
+}
+
+/// Open a file in the external editor
+fn open_in_editor(path: &std::path::Path) -> Result<()> {
+    use std::process::Command;
+
+    // Get editor from environment, with fallbacks
+    let editor = std::env::var("EDITOR")
+        .or_else(|_| std::env::var("VISUAL"))
+        .unwrap_or_else(|_| {
+            // Platform-specific fallbacks
+            if cfg!(target_os = "macos") {
+                "nano".to_string()
+            } else if cfg!(target_os = "windows") {
+                "notepad".to_string()
+            } else {
+                "vi".to_string()
+            }
+        });
+
+    // Split editor command in case it has arguments (e.g., "code --wait")
+    let mut parts = editor.split_whitespace();
+    let program = parts.next().unwrap_or("vi");
+    let args: Vec<&str> = parts.collect();
+
+    let status = Command::new(program)
+        .args(&args)
+        .arg(path)
+        .status()?;
+
+    if !status.success() {
+        anyhow::bail!("Editor exited with non-zero status: {:?}", status.code());
+    }
 
     Ok(())
 }

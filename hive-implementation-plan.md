@@ -15,30 +15,34 @@
 | 1     | Core TUI Shell       | Three-panel layout, navigation, keyboard/mouse   | ✅ Complete |
 | 2     | tmux Integration     | Session discovery, output streaming, interaction | ✅ Complete |
 | 3     | File Explorer        | Tree view, git status, preview                   | ✅ Complete |
-| 4     | Polish & Features    | Fuzzy finder, config, alerts, editor integration | 🔄 In Progress |
+| 4     | Polish & Features    | Fuzzy finder, config, alerts, editor integration | ✅ Complete |
 | 5     | Production Hardening | Testing, docs, release pipeline                  | ⏳ Pending  |
 
 ---
 
 ## Current Status (Updated 2026-01-10)
 
-**Phase 4 Progress:**
+**Phase 4: Complete** ✅
 
 | Feature | Status | Notes |
 | ------- | ------ | ----- |
-| 4.1 Fuzzy Finder | 🔄 Partial | UI exists, basic filtering works, nucleo not fully wired |
+| 4.1 Fuzzy Finder | ✅ Done | Nucleo-powered fuzzy matching with highlighting |
 | 4.2 Configuration | ✅ Done | TOML config loads from `~/.config/hive/config.toml` |
 | 4.3 Help Overlay | ✅ Done | `?` shows shortcuts, Esc dismisses |
-| 4.4 External Editor | ❌ Not Done | `e` key handler exists but no editor launch |
-| 4.5 Visual Alerts | 🔄 Partial | Color indicators exist, no sound/bell alerts |
+| 4.4 External Editor | ✅ Done | `e` opens file in $EDITOR/$VISUAL/fallback |
+| 4.5 Visual Alerts | ✅ Done | Color indicators + terminal bell support |
 | 4.6 Status Bar | ✅ Enhanced | Model info, contextual hints, build status |
-| 4.7 Customizable Layout | 🔄 Partial | Panel widths adjustable, layout order fixed |
+| 4.7 Customizable Layout | ✅ Done | Panel widths + layout order configurable |
 
-**Recent Polish (this session):**
-- Added tab bar component for workspace switching
-- Converted sessions to hierarchical workspaces tree
+**Recent Implementations:**
+- Tab bar component for workspace switching
+- Hierarchical workspaces tree with project grouping
 - Enhanced status bar with model info and key hints
-- Added progress/stats display to output panel
+- Progress/stats display in output panel (duration, data metrics)
+- Nucleo fuzzy matching with match highlighting
+- External editor integration ($EDITOR, $VISUAL, fallbacks)
+- Terminal bell alerts for errors (configurable)
+- Layout order configuration option
 
 ---
 

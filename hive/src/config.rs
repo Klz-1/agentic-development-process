@@ -16,6 +16,33 @@ pub struct Config {
     pub alerts: AlertsConfig,
 }
 
+/// Panel layout order options
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum LayoutOrder {
+    /// Sessions | Output | Files (default)
+    #[default]
+    SessionsOutputFiles,
+    /// Output | Sessions | Files
+    OutputSessionsFiles,
+    /// Files | Output | Sessions
+    FilesOutputSessions,
+    /// Sessions | Files | Output
+    SessionsFilesOutput,
+}
+
+impl LayoutOrder {
+    /// Get the panel order as indices (0=sessions, 1=output, 2=files)
+    pub fn panel_order(&self) -> [usize; 3] {
+        match self {
+            Self::SessionsOutputFiles => [0, 1, 2],
+            Self::OutputSessionsFiles => [1, 0, 2],
+            Self::FilesOutputSessions => [2, 1, 0],
+            Self::SessionsFilesOutput => [0, 2, 1],
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct GeneralConfig {
@@ -23,8 +50,10 @@ pub struct GeneralConfig {
     pub project_root: PathBuf,
     /// Refresh rate in milliseconds
     pub refresh_rate_ms: u64,
-    /// Default panel layout
+    /// Default panel layout style
     pub default_layout: String,
+    /// Panel arrangement order
+    pub layout_order: LayoutOrder,
 }
 
 impl Default for GeneralConfig {
@@ -36,6 +65,7 @@ impl Default for GeneralConfig {
                 .join("projects"),
             refresh_rate_ms: 500,
             default_layout: "three-panel".to_string(),
+            layout_order: LayoutOrder::default(),
         }
     }
 }

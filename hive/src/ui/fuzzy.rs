@@ -1,14 +1,14 @@
 //! Fuzzy finder overlay - quick file/command search
 //!
-//! Provides a fuzzy search interface for files, commands, and sessions.
+//! Uses nucleo for high-performance fuzzy matching of files, commands, and sessions.
 
-#![allow(dead_code)]
-
+use nucleo::{Config as NucleoConfig, Matcher, Utf32Str};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
+use std::path::PathBuf;
 
 /// State for the fuzzy finder
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct FuzzyFinderState {
     /// Whether the fuzzy finder is open
     pub open: bool,
@@ -18,6 +18,31 @@ pub struct FuzzyFinderState {
     pub selected: usize,
     /// Search results
     pub results: Vec<FuzzyResult>,
+    /// All searchable items
+    items: Vec<FuzzyItem>,
+    /// Nucleo matcher
+    matcher: Matcher,
+}
+
+impl Default for FuzzyFinderState {
+    fn default() -> Self {
+        Self {
+            open: false,
+            query: String::new(),
+            selected: 0,
+            results: Vec::new(),
+            items: Vec::new(),
+            matcher: Matcher::new(NucleoConfig::DEFAULT),
+        }
+    }
+}
+
+/// Internal searchable item
+#[derive(Debug, Clone)]
+struct FuzzyItem {
+    text: String,
+    kind: FuzzyResultKind,
+    path: Option<PathBuf>,
 }
 
 /// A single fuzzy search result
@@ -29,6 +54,10 @@ pub struct FuzzyResult {
     pub score: u32,
     /// Kind of result
     pub kind: FuzzyResultKind,
+    /// Path for file results
+    pub path: Option<PathBuf>,
+    /// Match indices for highlighting
+    pub indices: Vec<u32>,
 }
 
 /// Type of fuzzy result
@@ -40,12 +69,51 @@ pub enum FuzzyResultKind {
 }
 
 impl FuzzyFinderState {
+    /// Create a new fuzzy finder with items to search
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add files to the searchable items
+    pub fn add_files(&mut self, files: Vec<PathBuf>) {
+        for path in files {
+            let display = path.to_string_lossy().to_string();
+            self.items.push(FuzzyItem {
+                text: display,
+                kind: FuzzyResultKind::File,
+                path: Some(path),
+            });
+        }
+    }
+
+    /// Add sessions to the searchable items
+    pub fn add_sessions(&mut self, sessions: Vec<String>) {
+        for name in sessions {
+            self.items.push(FuzzyItem {
+                text: name,
+                kind: FuzzyResultKind::Session,
+                path: None,
+            });
+        }
+    }
+
+    /// Add commands to the searchable items
+    pub fn add_commands(&mut self, commands: Vec<&'static str>) {
+        for cmd in commands {
+            self.items.push(FuzzyItem {
+                text: cmd.to_string(),
+                kind: FuzzyResultKind::Command,
+                path: None,
+            });
+        }
+    }
+
     /// Open the fuzzy finder
     pub fn open(&mut self) {
         self.open = true;
         self.query.clear();
         self.selected = 0;
-        self.results.clear();
+        self.update_results();
     }
 
     /// Close the fuzzy finder
@@ -85,51 +153,87 @@ impl FuzzyFinderState {
         self.results.get(self.selected)
     }
 
-    /// Update results based on current query (stub - will be connected to nucleo later)
+    /// Update results using nucleo fuzzy matching
     fn update_results(&mut self) {
-        // Stub implementation - just show some placeholder results
         self.results.clear();
         self.selected = 0;
 
         if self.query.is_empty() {
+            // Show all items when query is empty (limited)
+            for item in self.items.iter().take(20) {
+                self.results.push(FuzzyResult {
+                    display: item.text.clone(),
+                    score: 0,
+                    kind: item.kind,
+                    path: item.path.clone(),
+                    indices: Vec::new(),
+                });
+            }
             return;
         }
 
-        // Placeholder results for demonstration
-        let placeholders = vec![
-            ("src/main.rs", FuzzyResultKind::File),
-            ("src/app.rs", FuzzyResultKind::File),
-            ("src/ui/mod.rs", FuzzyResultKind::File),
-            (":attach", FuzzyResultKind::Command),
-            (":quit", FuzzyResultKind::Command),
-        ];
+        // Convert query to Utf32Str for nucleo
+        let mut query_buf = Vec::new();
+        let query = Utf32Str::new(&self.query, &mut query_buf);
 
-        for (name, kind) in placeholders {
-            if name.to_lowercase().contains(&self.query.to_lowercase()) {
-                self.results.push(FuzzyResult {
-                    display: name.to_string(),
-                    score: 100,
-                    kind,
-                });
+        // Score each item
+        let mut scored: Vec<(u32, Vec<u32>, &FuzzyItem)> = Vec::new();
+
+        for item in &self.items {
+            let mut haystack_buf = Vec::new();
+            let haystack = Utf32Str::new(&item.text, &mut haystack_buf);
+
+            let mut indices = Vec::new();
+            if let Some(score) = self.matcher.fuzzy_indices(haystack, query, &mut indices) {
+                scored.push((score as u32, indices, item));
             }
         }
+
+        // Sort by score (highest first)
+        scored.sort_by(|a, b| b.0.cmp(&a.0));
+
+        // Take top results
+        for (score, indices, item) in scored.into_iter().take(15) {
+            self.results.push(FuzzyResult {
+                display: item.text.clone(),
+                score,
+                kind: item.kind,
+                path: item.path.clone(),
+                indices,
+            });
+        }
+    }
+
+    /// Clear all items
+    pub fn clear_items(&mut self) {
+        self.items.clear();
+        self.results.clear();
     }
 }
 
 /// Fuzzy finder overlay widget
 pub struct FuzzyFinderOverlay<'a> {
     query: &'a str,
+    results: Option<&'a [FuzzyResult]>,
+    selected: usize,
 }
 
 impl<'a> FuzzyFinderOverlay<'a> {
     pub fn new(query: &'a str) -> Self {
-        Self { query }
+        Self {
+            query,
+            results: None,
+            selected: 0,
+        }
     }
 
     /// Create from a FuzzyFinderState
-    #[allow(dead_code)]
     pub fn from_state(state: &'a FuzzyFinderState) -> Self {
-        Self { query: &state.query }
+        Self {
+            query: &state.query,
+            results: Some(&state.results),
+            selected: state.selected,
+        }
     }
 
     pub fn render(self, frame: &mut Frame) {
@@ -151,12 +255,16 @@ impl<'a> FuzzyFinderOverlay<'a> {
             Constraint::Length(1), // Input line
             Constraint::Length(1), // Separator
             Constraint::Min(1),    // Results
+            Constraint::Length(1), // Hint line
         ])
         .split(inner);
 
         // Render input line with cursor
-        let input = Paragraph::new(format!("> {}_", self.query))
-            .style(Style::default().fg(Color::White));
+        let input = Paragraph::new(Line::from(vec![
+            Span::styled("> ", Style::default().fg(Color::Cyan)),
+            Span::raw(self.query),
+            Span::styled("_", Style::default().add_modifier(Modifier::SLOW_BLINK)),
+        ]));
         frame.render_widget(input, chunks[0]);
 
         // Render separator
@@ -164,43 +272,135 @@ impl<'a> FuzzyFinderOverlay<'a> {
             .style(Style::default().fg(Color::DarkGray));
         frame.render_widget(separator, chunks[1]);
 
-        // Generate placeholder results based on query (stub)
-        let results = self.get_placeholder_results();
-
         // Render results
+        if let Some(results) = self.results {
+            self.render_results(frame, chunks[2], results);
+        } else {
+            // Fallback to placeholder results
+            let results = self.get_placeholder_results();
+            self.render_placeholder_results(frame, chunks[2], &results);
+        }
+
+        // Render hint line
+        let hint = Paragraph::new(Line::from(vec![
+            Span::styled("↑↓", Style::default().fg(Color::Yellow)),
+            Span::styled(" navigate  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("enter", Style::default().fg(Color::Yellow)),
+            Span::styled(" select  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("esc", Style::default().fg(Color::Yellow)),
+            Span::styled(" cancel", Style::default().fg(Color::DarkGray)),
+        ]));
+        frame.render_widget(hint, chunks[3]);
+    }
+
+    fn render_results(&self, frame: &mut Frame, area: Rect, results: &[FuzzyResult]) {
+        if results.is_empty() && !self.query.is_empty() {
+            let no_results = Paragraph::new("  No results")
+                .style(Style::default().fg(Color::DarkGray));
+            frame.render_widget(no_results, area);
+            return;
+        }
+
+        if results.is_empty() {
+            let hint = Paragraph::new("  Type to search files, commands, sessions...")
+                .style(Style::default().fg(Color::DarkGray));
+            frame.render_widget(hint, area);
+            return;
+        }
+
+        let items: Vec<ListItem> = results
+            .iter()
+            .enumerate()
+            .map(|(i, result)| {
+                let icon = match result.kind {
+                    FuzzyResultKind::File => "📄",
+                    FuzzyResultKind::Command => "⌘ ",
+                    FuzzyResultKind::Session => "● ",
+                };
+
+                let style = if i == self.selected {
+                    Style::default().bg(Color::Rgb(50, 50, 50)).fg(Color::White)
+                } else {
+                    Style::default().fg(Color::Gray)
+                };
+
+                // Build display with highlighted matches
+                let display = if !result.indices.is_empty() && i == self.selected {
+                    // Highlight matched characters
+                    let mut spans = vec![Span::styled(format!("{} ", icon), style)];
+                    let chars: Vec<char> = result.display.chars().collect();
+                    let indices_set: std::collections::HashSet<u32> =
+                        result.indices.iter().cloned().collect();
+
+                    for (idx, ch) in chars.iter().enumerate() {
+                        if indices_set.contains(&(idx as u32)) {
+                            spans.push(Span::styled(
+                                ch.to_string(),
+                                style.fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                            ));
+                        } else {
+                            spans.push(Span::styled(ch.to_string(), style));
+                        }
+                    }
+                    Line::from(spans)
+                } else {
+                    Line::from(vec![
+                        Span::styled(format!("{} ", icon), style),
+                        Span::styled(&result.display, style),
+                    ])
+                };
+
+                ListItem::new(display)
+            })
+            .collect();
+
+        let list = List::new(items);
+        frame.render_widget(list, area);
+    }
+
+    fn render_placeholder_results(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        results: &[(&str, FuzzyResultKind)],
+    ) {
+        if results.is_empty() && !self.query.is_empty() {
+            let no_results = Paragraph::new("  No results")
+                .style(Style::default().fg(Color::DarkGray));
+            frame.render_widget(no_results, area);
+            return;
+        }
+
+        if results.is_empty() {
+            let hint = Paragraph::new("  Type to search files, commands, sessions...")
+                .style(Style::default().fg(Color::DarkGray));
+            frame.render_widget(hint, area);
+            return;
+        }
+
         let items: Vec<ListItem> = results
             .iter()
             .enumerate()
             .map(|(i, (name, kind))| {
                 let icon = match kind {
-                    FuzzyResultKind::File => " ",
-                    FuzzyResultKind::Command => " ",
-                    FuzzyResultKind::Session => " ",
+                    FuzzyResultKind::File => "📄",
+                    FuzzyResultKind::Command => "⌘ ",
+                    FuzzyResultKind::Session => "● ",
                 };
                 let style = if i == 0 {
-                    Style::default().bg(Color::DarkGray).fg(Color::White)
+                    Style::default().bg(Color::Rgb(50, 50, 50)).fg(Color::White)
                 } else {
-                    Style::default()
+                    Style::default().fg(Color::Gray)
                 };
-                ListItem::new(format!("{}{}", icon, name)).style(style)
+                ListItem::new(format!("{} {}", icon, name)).style(style)
             })
             .collect();
 
-        if items.is_empty() && !self.query.is_empty() {
-            let no_results = Paragraph::new("  No results")
-                .style(Style::default().fg(Color::DarkGray));
-            frame.render_widget(no_results, chunks[2]);
-        } else if items.is_empty() {
-            let hint = Paragraph::new("  Type to search files, commands, sessions...")
-                .style(Style::default().fg(Color::DarkGray));
-            frame.render_widget(hint, chunks[2]);
-        } else {
-            let list = List::new(items);
-            frame.render_widget(list, chunks[2]);
-        }
+        let list = List::new(items);
+        frame.render_widget(list, area);
     }
 
-    /// Get placeholder results based on query (stub implementation)
+    /// Get placeholder results based on query (fallback)
     fn get_placeholder_results(&self) -> Vec<(&'static str, FuzzyResultKind)> {
         if self.query.is_empty() {
             return vec![];
