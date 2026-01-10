@@ -121,6 +121,8 @@ pub struct App {
     capture_handle: Option<CaptureHandle>,
     /// Name of session currently being captured
     captured_session: Option<String>,
+    /// Flag to create a new session (set by click, handled in tick)
+    pending_new_session: bool,
 }
 
 impl App {
@@ -167,6 +169,7 @@ impl App {
             alert_message: None,
             capture_handle: None,
             captured_session: None,
+            pending_new_session: false,
         }
     }
 
@@ -511,13 +514,19 @@ impl App {
 
     /// Handle click on the tab bar to select a session
     fn handle_tab_click(&mut self, x: u16) {
-        if self.sessions.is_empty() {
-            return;
-        }
-
         // Calculate tab positions
         // Format: "[N] name " for each tab
         let mut current_x: u16 = 0;
+
+        if self.sessions.is_empty() {
+            // Only the "[+] New" button exists
+            // Check if clicking on it (starts at position 0 after "No active sessions ")
+            let prefix_len = " No active sessions ".len() as u16;
+            if x >= prefix_len {
+                self.pending_new_session = true;
+            }
+            return;
+        }
 
         for (i, session) in self.sessions.iter().enumerate() {
             // Calculate this tab's width
@@ -553,6 +562,12 @@ impl App {
             }
 
             current_x += total_width;
+        }
+
+        // Check if clicking on "[+] New" button (after all tabs)
+        // "  [+] New" = 9 chars after tabs
+        if x >= current_x {
+            self.pending_new_session = true;
         }
     }
 
@@ -656,6 +671,14 @@ impl App {
 
     /// Async tick handler - called from main loop
     pub async fn on_tick_async(&mut self) {
+        // Handle pending new session creation
+        if self.pending_new_session {
+            self.pending_new_session = false;
+            if let Err(e) = self.create_new_session().await {
+                tracing::warn!("Failed to create new session: {}", e);
+            }
+        }
+
         // Refresh session data
         if let Err(e) = self.refresh_sessions().await {
             tracing::warn!("Failed to refresh sessions: {}", e);
@@ -663,6 +686,35 @@ impl App {
 
         // Refresh output buffer
         self.refresh_output().await;
+    }
+
+    /// Create a new tmux session
+    async fn create_new_session(&mut self) -> Result<()> {
+        // Generate a unique session name
+        let session_num = self.sessions.len() + 1;
+        let session_name = format!("hive-session-{}", session_num);
+
+        // Get current working directory as the session path
+        let cwd = std::env::current_dir()
+            .unwrap_or_else(|_| std::path::PathBuf::from("."))
+            .to_string_lossy()
+            .to_string();
+
+        // Create the session
+        self.tmux_client
+            .new_session(&session_name, Some(&cwd))
+            .await?;
+
+        // Refresh to pick up the new session
+        self.refresh_sessions().await?;
+
+        // Select the new session (should be last in list)
+        if !self.sessions.is_empty() {
+            self.selected_session = self.sessions.len() - 1;
+            self.sync_to_session();
+        }
+
+        Ok(())
     }
 
     /// Start or switch output capture for the selected session
