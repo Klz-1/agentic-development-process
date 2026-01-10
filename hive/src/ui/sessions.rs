@@ -1,10 +1,13 @@
-//! Sessions panel - displays tmux sessions with status
+//! Sessions panel - displays workspaces in a hierarchical tree view
+//!
+//! Styled as a "Workspaces" sidebar with collapsible project groups,
+//! similar to IDE-style project navigation.
 
 use crate::app::{App, FocusedPanel};
 use crate::tmux::{Session, SessionStatus};
-use chrono::Utc;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState};
+use std::collections::BTreeMap;
 
 pub struct SessionsPanel<'a> {
     app: &'a App,
@@ -15,59 +18,35 @@ impl<'a> SessionsPanel<'a> {
         Self { app }
     }
 
-    /// Format session status as a display string
-    fn format_status(session: &Session) -> (String, Style) {
-        match &session.status {
-            SessionStatus::Running { progress } => {
-                let detail = if let Some(p) = progress {
-                    format!(
-                        "{:.0}% {}",
-                        p.percentage() * 100.0,
-                        p.label.as_deref().unwrap_or("")
-                    )
-                } else {
-                    format!(
-                        "CPU: {:.0}% MEM: {}MB",
-                        session.resource_usage.cpu_percent,
-                        session.resource_usage.memory_mb
-                    )
-                };
-                (detail, Style::default().fg(Color::Green))
-            }
-            SessionStatus::Idle { since } => {
-                let duration = Utc::now().signed_duration_since(*since);
-                let idle_str = if duration.num_hours() > 0 {
-                    format!("Idle {}h", duration.num_hours())
-                } else if duration.num_minutes() > 0 {
-                    format!("Idle {}m", duration.num_minutes())
-                } else {
-                    "Idle".to_string()
-                };
-                (idle_str, Style::default().fg(Color::DarkGray))
-            }
-            SessionStatus::Error { message } => {
-                let short_msg = if message.len() > 20 {
-                    format!("{}...", &message[..17])
-                } else {
-                    message.clone()
-                };
-                (short_msg, Style::default().fg(Color::Red))
-            }
-            SessionStatus::Completed { at } => {
-                let duration = Utc::now().signed_duration_since(*at);
-                let completed_str = if duration.num_hours() > 0 {
-                    format!("Done {}h ago", duration.num_hours())
-                } else if duration.num_minutes() > 0 {
-                    format!("Done {}m ago", duration.num_minutes())
-                } else {
-                    "Just completed".to_string()
-                };
-                (completed_str, Style::default().fg(Color::Blue))
+    /// Parse session name to extract project and workspace
+    /// Handles formats: "project/workspace", "project-workspace", "workspace"
+    fn parse_session_name(name: &str) -> (String, String) {
+        if let Some((project, workspace)) = name.split_once('/') {
+            return (project.to_string(), workspace.to_string());
+        }
+        // For names like "project-workspace", use the first part as project
+        if let Some((project, workspace)) = name.split_once('-') {
+            if !project.is_empty() && !workspace.is_empty() && project.len() > 2 {
+                return (project.to_string(), workspace.to_string());
             }
         }
+        // Default: put in "default" project
+        ("default".to_string(), name.to_string())
     }
 
-    /// Get status icon and color
+    /// Group session indices by project name
+    fn group_sessions_by_project(sessions: &[Session]) -> BTreeMap<String, Vec<usize>> {
+        let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+
+        for (idx, session) in sessions.iter().enumerate() {
+            let (project, _workspace) = Self::parse_session_name(&session.name);
+            groups.entry(project).or_default().push(idx);
+        }
+
+        groups
+    }
+
+    /// Get status icon for a session
     fn status_icon(session: &Session) -> (&'static str, Style) {
         match &session.status {
             SessionStatus::Running { .. } => ("●", Style::default().fg(Color::Green)),
@@ -86,84 +65,120 @@ impl<'a> SessionsPanel<'a> {
             Style::default().fg(Color::DarkGray)
         };
 
-        // Calculate scroll indicator
-        let total_items = self.app.session_count;
-        let visible_height = area.height.saturating_sub(2) as usize;
-        let scroll_indicator = if total_items > 0 {
-            format!(" [{}/{}] ", self.app.selected_session + 1, total_items)
-        } else {
-            " [no sessions] ".to_string()
-        };
-
         let block = Block::default()
-            .title(" Sessions ")
-            .title_bottom(Line::from(scroll_indicator).right_aligned())
+            .title(" Workspaces ")
             .borders(Borders::ALL)
             .border_style(border_style);
 
-        // Build list items from real session data
+        let inner_area = block.inner(area);
+        frame.render_widget(block, area);
+
+        // Build list items
         let mut items: Vec<ListItem> = Vec::new();
+        let mut session_index_map: Vec<Option<usize>> = Vec::new(); // Maps list index to session index
 
         if self.app.sessions.is_empty() {
-            // Show placeholder when no sessions
+            // Empty state
             items.push(ListItem::new(Line::from(vec![
-                Span::styled("  No tmux sessions", Style::default().fg(Color::DarkGray)),
+                Span::styled("  No workspaces", Style::default().fg(Color::DarkGray)),
             ])));
+            session_index_map.push(None);
+
             items.push(ListItem::new(Line::from(vec![
-                Span::styled("  Run 'tmux new -s name'", Style::default().fg(Color::DarkGray)),
+                Span::styled("  ", Style::default()),
             ])));
+            session_index_map.push(None);
+
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled("+ ", Style::default().fg(Color::Cyan)),
+                Span::styled("New workspace", Style::default().fg(Color::Cyan)),
+            ])));
+            session_index_map.push(None);
         } else {
-            for (i, session) in self.app.sessions.iter().enumerate() {
-                let (icon, icon_style) = Self::status_icon(session);
-                let (detail, _detail_style) = Self::format_status(session);
+            let groups = Self::group_sessions_by_project(&self.app.sessions);
 
-                // Highlight selected session
-                let name_style = if i == self.app.selected_session && is_focused {
-                    Style::default().add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default()
-                };
-
+            for (project_name, session_indices) in groups {
+                // Project header with collapse indicator
+                let collapse_icon = "▼"; // All expanded by default
                 items.push(ListItem::new(Line::from(vec![
-                    Span::styled(icon, icon_style),
-                    Span::raw(" "),
-                    Span::styled(&session.name, name_style),
+                    Span::styled(
+                        format!("{} ", collapse_icon),
+                        Style::default().fg(Color::Gray),
+                    ),
+                    Span::styled(
+                        project_name.clone(),
+                        Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                    ),
                 ])));
+                session_index_map.push(None); // Header, not a session
 
+                // "+ New workspace" button
                 items.push(ListItem::new(Line::from(vec![
-                    Span::raw("  "),
-                    Span::styled(detail, Style::default().fg(Color::DarkGray)),
+                    Span::styled("  + ", Style::default().fg(Color::Cyan)),
+                    Span::styled("New workspace", Style::default().fg(Color::DarkGray)),
                 ])));
+                session_index_map.push(None);
 
-                // Add spacing between sessions (except after last)
-                if i < self.app.sessions.len() - 1 {
-                    items.push(ListItem::new(""));
+                // Workspaces in this project
+                for session_idx in session_indices {
+                    let session = &self.app.sessions[session_idx];
+                    let (_project, workspace) = Self::parse_session_name(&session.name);
+                    let (icon, icon_style) = Self::status_icon(session);
+                    let is_selected = session_idx == self.app.selected_session;
+
+                    let name_style = if is_selected && is_focused {
+                        Style::default()
+                            .fg(Color::White)
+                            .bg(Color::Rgb(50, 50, 50))
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(Color::Gray)
+                    };
+
+                    // Show full session name or just workspace part
+                    let display_name = format!("{}/{}", _project, workspace);
+
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::styled("  ", Style::default()),
+                        Span::styled(icon, icon_style),
+                        Span::styled(" ", Style::default()),
+                        Span::styled(display_name, name_style),
+                    ])));
+                    session_index_map.push(Some(session_idx));
+
+                    // Secondary line with just the workspace name (dimmed)
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::styled("    ", Style::default()),
+                        Span::styled(
+                            workspace,
+                            Style::default().fg(Color::DarkGray),
+                        ),
+                    ])));
+                    session_index_map.push(Some(session_idx));
                 }
             }
         }
 
+        // Find which list item to highlight based on selected session
+        let highlight_index = session_index_map
+            .iter()
+            .position(|&idx| idx == Some(self.app.selected_session));
+
         let list = List::new(items)
-            .block(block)
             .highlight_style(
                 Style::default()
-                    .add_modifier(Modifier::BOLD)
-                    .bg(Color::DarkGray),
+                    .bg(Color::Rgb(40, 40, 40)),
             )
-            .highlight_symbol("▶ ");
-
-        // Map selected session to list index (each session takes 2-3 list items)
-        let list_index = if self.app.sessions.is_empty() {
-            None
-        } else {
-            Some(self.app.selected_session * 3) // 2 lines + 1 spacer per session
-        };
+            .highlight_symbol("");
 
         let mut state = ListState::default();
-        state.select(list_index);
+        state.select(highlight_index);
 
-        frame.render_stateful_widget(list, area, &mut state);
+        frame.render_stateful_widget(list, inner_area, &mut state);
 
-        // Render scrollbar if content exceeds visible area
+        // Render scrollbar if needed
+        let total_items = session_index_map.len();
+        let visible_height = inner_area.height as usize;
         if total_items > visible_height {
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .begin_symbol(Some("▲"))
@@ -175,10 +190,10 @@ impl<'a> SessionsPanel<'a> {
                 ScrollbarState::new(total_items).position(self.app.sessions_scroll);
 
             let scrollbar_area = Rect {
-                x: area.x + area.width - 1,
-                y: area.y + 1,
+                x: inner_area.x + inner_area.width,
+                y: inner_area.y,
                 width: 1,
-                height: area.height.saturating_sub(2),
+                height: inner_area.height,
             };
 
             frame.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);

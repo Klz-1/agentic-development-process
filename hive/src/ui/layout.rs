@@ -9,8 +9,9 @@ use ratatui::prelude::*;
 /// Minimum panel width in characters
 const MIN_PANEL_WIDTH: u16 = 15;
 
-/// Layout regions for the three-panel view
+/// Layout regions for the three-panel view with tab bar
 pub struct LayoutChunks {
+    pub tab_bar: Rect,
     pub sessions: Rect,
     pub output: Rect,
     pub files: Rect,
@@ -144,17 +145,19 @@ pub fn create_layout_from_percentages(area: Rect, widths: (u16, u16, u16)) -> La
     create_layout(area, &sizes)
 }
 
-/// Create the three-panel layout with status bar
+/// Create the three-panel layout with tab bar and status bar
 pub fn create_layout(area: Rect, sizes: &PanelSizes) -> LayoutChunks {
-    // Split vertically: main area + status bar
+    // Split vertically: tab bar + main area + status bar
     let vertical = Layout::vertical([
-        Constraint::Min(1),
-        Constraint::Length(1),
+        Constraint::Length(1), // Tab bar
+        Constraint::Min(1),    // Main panels
+        Constraint::Length(1), // Status bar
     ])
     .split(area);
 
-    let main_area = vertical[0];
-    let status_bar = vertical[1];
+    let tab_bar = vertical[0];
+    let main_area = vertical[1];
+    let status_bar = vertical[2];
 
     // Calculate pixel widths from percentages
     let total_width = main_area.width;
@@ -171,6 +174,7 @@ pub fn create_layout(area: Rect, sizes: &PanelSizes) -> LayoutChunks {
     .split(main_area);
 
     LayoutChunks {
+        tab_bar,
         sessions: horizontal[0],
         output: horizontal[1],
         files: horizontal[2],

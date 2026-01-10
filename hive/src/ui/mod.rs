@@ -7,6 +7,7 @@ mod layout;
 mod output;
 mod sessions;
 mod status_bar;
+mod tab_bar;
 
 use crate::app::App;
 use ratatui::prelude::*;
@@ -18,10 +19,14 @@ pub use layout::create_layout_from_percentages;
 pub use output::OutputPanel;
 pub use sessions::SessionsPanel;
 pub use status_bar::StatusBar;
+pub use tab_bar::TabBar;
 
 /// Draw the entire UI
 pub fn draw(frame: &mut Frame, app: &App) {
     let chunks = create_layout_from_percentages(frame.area(), app.panel_widths);
+
+    // Draw tab bar at the top
+    TabBar::new(app).render(frame, chunks.tab_bar);
 
     // Draw panels
     SessionsPanel::new(app).render(frame, chunks.sessions);
