@@ -1,23 +1,30 @@
-# Hive 🐝
+# Hive
 
 > Terminal UI for monitoring AI agent sessions
 
 A production-grade TUI for monitoring multiple tmux sessions running AI agents, with integrated file exploration and git awareness.
 
+![Hive Screenshot](docs/screenshot.png)
+
 ## Features
 
-- **Multi-session Monitoring** - View all tmux sessions with status, CPU/memory usage, and progress indicators
-- **Live Output Streaming** - Real-time streaming of session output with auto-scroll
+- **Multi-session Monitoring** - View all tmux sessions with status indicators
+- **Live Output Streaming** - Real-time session output with auto-scroll
 - **File Explorer** - Browse project files with git status indicators
-- **Fuzzy Finder** - Quick search for files, commands, and sessions with nucleo-powered matching
-- **External Editor** - Open files in your preferred editor with `e`
-- **Configurable Layout** - Customize panel arrangement and sizes
-- **Visual Alerts** - Get notified when sessions have errors (with optional terminal bell)
-- **Workspace Tree** - Hierarchical view of projects and workspaces
+- **Dark Theme** - Clean, modern dark theme (requires true color terminal)
+- **Mouse Support** - Click to select, scroll, and resize panels
+- **Fuzzy Finder** - Quick search with nucleo-powered matching
+- **External Editor** - Open files in your preferred editor
+- **Configurable** - Customize layout, colors, and behavior
+
+## Requirements
+
+- **Rust 1.70+** (for building)
+- **tmux** (for session monitoring)
+- **True color terminal** - Ghostty, iTerm2, Alacritty, Kitty, or WezTerm
+  - Note: macOS Terminal.app has limited color support
 
 ## Installation
-
-### From source
 
 ```bash
 git clone https://github.com/youruser/hive.git
@@ -25,49 +32,39 @@ cd hive
 cargo install --path .
 ```
 
-### Requirements
-
-- Rust 1.70+ (for building)
-- tmux (for session monitoring)
-- A terminal with Unicode support
-
 ## Quick Start
 
 1. Start some tmux sessions:
 
    ```bash
-   tmux new-session -d -s project/feature-1
-   tmux new-session -d -s project/feature-2
+   tmux new-session -d -s myproject/feature-1
+   tmux new-session -d -s myproject/feature-2
    ```
 
 2. Run hive:
-
    ```bash
    hive
    ```
 
-3. Navigate with:
-   - `Tab` / `Shift+Tab` - Switch panels
-   - `↑` / `↓` or `j` / `k` - Navigate within panel
-   - `Enter` - Primary action
-   - `?` - Show help
-
 ## Keyboard Shortcuts
 
-| Key                    | Action                                  |
-| ---------------------- | --------------------------------------- |
-| `Tab` / `Shift+Tab`    | Switch between panels                   |
-| `↑` / `↓` or `j` / `k` | Navigate up/down                        |
-| `Enter`                | Primary action (attach, expand, select) |
-| `?`                    | Show help overlay                       |
-| `/`                    | Open fuzzy finder                       |
-| `e`                    | Open file in editor (Files panel)       |
-| `.`                    | Toggle hidden files (Files panel)       |
-| `p`                    | Toggle auto-scroll (Output panel)       |
-| `q`                    | Quit                                    |
-| `Esc`                  | Cancel / close overlay / clear alert    |
+| Key                 | Action                      |
+| ------------------- | --------------------------- |
+| `Tab` / `Shift+Tab` | Switch panels               |
+| `↑/↓` or `j/k`      | Navigate                    |
+| `Enter`             | Select / attach / expand    |
+| `?`                 | Help overlay                |
+| `/`                 | Fuzzy finder                |
+| `e`                 | Open in editor (Files)      |
+| `.`                 | Toggle hidden files         |
+| `p`                 | Toggle auto-scroll (Output) |
+| `q` / `Esc`         | Quit                        |
 
-See `?` in the app for full keybinding reference.
+## Mouse Support
+
+- **Click** - Focus panel and select item
+- **Scroll** - Scroll within panel
+- **Drag borders** - Resize panels
 
 ## Configuration
 
@@ -77,110 +74,84 @@ Create `~/.config/hive/config.toml`:
 [general]
 project_root = "~/projects"
 refresh_rate_ms = 500
-layout_order = "sessions-output-files"  # Panel arrangement
 
 [sessions]
 show_resource_usage = true
-show_progress = true
 output_buffer_lines = 1000
 
 [files]
 show_hidden = false
 git_status = true
-syntax_highlighting = true
-preview_lines = 20
 
 [alerts]
 visual = true
-sound = false  # Enable terminal bell on errors
+sound = false
 ```
 
-### Layout Options
+## Terminal Compatibility
 
-The `layout_order` setting controls panel arrangement:
+For the best experience, use a terminal with **true color (24-bit)** support:
 
-- `sessions-output-files` (default): Sessions | Output | Files
-- `output-sessions-files`: Output | Sessions | Files
-- `files-output-sessions`: Files | Output | Sessions
-- `sessions-files-output`: Sessions | Files | Output
+| Terminal     | True Color | Recommended |
+| ------------ | ---------- | ----------- |
+| Ghostty      | ✅         | ✅          |
+| iTerm2       | ✅         | ✅          |
+| Alacritty    | ✅         | ✅          |
+| Kitty        | ✅         | ✅          |
+| WezTerm      | ✅         | ✅          |
+| Terminal.app | ❌         | ❌          |
 
-## Command Line Options
-
-```
-USAGE:
-    hive [OPTIONS]
-
-OPTIONS:
-    -d, --debug      Enable debug logging to ~/.local/share/hive/hive.log
-    -V, --version    Print version information
-    -h, --help       Print this help message
-```
-
-## Debug Mode
-
-Run with debug logging to troubleshoot issues:
+If colors look wrong, check:
 
 ```bash
-hive --debug
+echo $COLORTERM  # Should be "truecolor"
 ```
 
-Logs are written to `~/.local/share/hive/hive.log`.
+## Command Line
+
+```
+hive [OPTIONS]
+
+OPTIONS:
+    -d, --debug      Enable debug logging
+    -V, --version    Print version
+    -h, --help       Print help
+```
+
+Debug logs: `~/.local/share/hive/hive.log`
 
 ## Architecture
 
 ```
-hive/
-├── src/
-│   ├── main.rs      # Entry point, CLI args, logging
-│   ├── app.rs       # Application state, event handling
-│   ├── config.rs    # Configuration loading
-│   ├── event.rs     # Input event handling
-│   ├── ui/          # UI components
-│   │   ├── tab_bar.rs     # Workspace tabs
-│   │   ├── sessions.rs    # Workspaces tree panel
-│   │   ├── output.rs      # Session output panel
-│   │   ├── files.rs       # File explorer panel
-│   │   ├── status_bar.rs  # Status bar with hints
-│   │   ├── help.rs        # Help overlay
-│   │   └── fuzzy.rs       # Fuzzy finder
-│   ├── files/       # File explorer
-│   ├── tmux/        # tmux integration
-│   └── utils/       # Utilities (ring buffer, etc.)
-└── tests/           # Integration tests
+src/
+├── main.rs          # Entry point
+├── app.rs           # Application state
+├── config.rs        # Configuration
+├── theme.rs         # Color palette
+├── event.rs         # Input handling
+├── ui/
+│   ├── sessions.rs  # Workspaces panel
+│   ├── output.rs    # Output panel
+│   ├── files.rs     # File explorer
+│   ├── tab_bar.rs   # Tab bar
+│   ├── status_bar.rs
+│   ├── help.rs
+│   └── fuzzy.rs
+├── tmux/            # tmux integration
+├── files/           # File tree & git
+└── utils/           # Ring buffer, etc.
 ```
 
 ## Development
 
 ```bash
-# Run in development
-cargo run
-
-# Run with logging
-RUST_LOG=debug cargo run
-
-# Run tests
-cargo test
-
-# Run with verbose test output
-cargo test -- --nocapture
-
-# Build release
-cargo build --release
-
-# Check for issues
-cargo clippy
+cargo run              # Run
+cargo run -- --debug   # Run with logging
+cargo test             # Test
+cargo clippy           # Lint
+cargo build --release  # Release build
 ```
 
 ## License
 
 MIT
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests: `cargo test`
-5. Submit a pull request

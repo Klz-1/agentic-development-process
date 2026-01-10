@@ -198,13 +198,23 @@ impl App {
     }
 
     /// Set the file tree root to a new path and refresh
-    #[allow(dead_code)]
     pub fn set_file_root(&mut self, path: PathBuf) {
-        self.file_tree = FileTree::new(path);
-        self.update_file_tree_git_status();
-        self.file_count = self.file_tree.entries.len();
-        self.selected_file = 0;
-        self.files_scroll = 0;
+        // Only update if the path is different
+        if self.file_tree.root != path {
+            self.file_tree = FileTree::new(path);
+            self.update_file_tree_git_status();
+            self.file_count = self.file_tree.entries.len();
+            self.selected_file = 0;
+            self.files_scroll = 0;
+        }
+    }
+
+    /// Sync file tree to the currently selected session's project root
+    pub fn sync_file_tree_to_session(&mut self) {
+        if let Some(session) = self.sessions.get(self.selected_session) {
+            let project_root = session.project_root.clone();
+            self.set_file_root(project_root);
+        }
     }
 
     /// Update git status for all file tree entries
@@ -239,12 +249,18 @@ impl App {
 
     /// Refresh session list from tmux
     pub async fn refresh_sessions(&mut self) -> Result<()> {
+        let old_session_count = self.sessions.len();
         self.sessions = self.tmux_client.list_sessions().await?;
         self.session_count = self.sessions.len();
 
         // Clamp selected session if sessions were removed
         if self.selected_session >= self.session_count && self.session_count > 0 {
             self.selected_session = self.session_count - 1;
+        }
+
+        // Sync file tree to selected session if this is first load or sessions changed
+        if old_session_count == 0 && self.session_count > 0 {
+            self.sync_file_tree_to_session();
         }
 
         Ok(())
@@ -501,9 +517,14 @@ impl App {
             self.focused_panel = FocusedPanel::Sessions;
             // Sessions are now simple 1 row per session
             if !self.sessions.is_empty() {
+                let old_selection = self.selected_session;
                 let index = content_y + self.sessions_scroll;
                 if index < self.sessions.len() {
                     self.selected_session = index;
+                    // Sync file tree if selection changed
+                    if old_selection != self.selected_session {
+                        self.sync_file_tree_to_session();
+                    }
                 }
             }
         } else if x < output_end {
@@ -523,9 +544,13 @@ impl App {
         let (sessions_end, output_end) = self.get_panel_borders();
 
         if x < sessions_end {
+            let old_selection = self.selected_session;
             self.sessions_scroll = self.sessions_scroll.saturating_sub(3);
             if self.selected_session > 0 {
                 self.selected_session = self.selected_session.saturating_sub(1);
+            }
+            if old_selection != self.selected_session {
+                self.sync_file_tree_to_session();
             }
         } else if x < output_end {
             self.output_auto_scroll = false;
@@ -543,8 +568,12 @@ impl App {
         let (sessions_end, output_end) = self.get_panel_borders();
 
         if x < sessions_end {
+            let old_selection = self.selected_session;
             self.sessions_scroll = (self.sessions_scroll + 3).min(self.session_count.saturating_sub(1));
             self.selected_session = (self.selected_session + 1).min(self.session_count.saturating_sub(1));
+            if old_selection != self.selected_session {
+                self.sync_file_tree_to_session();
+            }
         } else if x < output_end {
             self.output_auto_scroll = false;
             self.output_scroll = (self.output_scroll + 3).min(self.output_line_count.saturating_sub(1));
@@ -585,10 +614,15 @@ impl App {
     fn navigate_up(&mut self) {
         match self.focused_panel {
             FocusedPanel::Sessions => {
+                let old_selection = self.selected_session;
                 self.selected_session = self.selected_session.saturating_sub(1);
                 // Adjust scroll if selection goes above visible area
                 if self.selected_session < self.sessions_scroll {
                     self.sessions_scroll = self.selected_session;
+                }
+                // Sync file tree if selection changed
+                if old_selection != self.selected_session {
+                    self.sync_file_tree_to_session();
                 }
             }
             FocusedPanel::Output => {
@@ -608,8 +642,13 @@ impl App {
     fn navigate_down(&mut self) {
         match self.focused_panel {
             FocusedPanel::Sessions => {
+                let old_selection = self.selected_session;
                 if self.selected_session < self.session_count.saturating_sub(1) {
                     self.selected_session += 1;
+                }
+                // Sync file tree if selection changed
+                if old_selection != self.selected_session {
+                    self.sync_file_tree_to_session();
                 }
             }
             FocusedPanel::Output => {
@@ -630,8 +669,12 @@ impl App {
         let page_size = 10;
         match self.focused_panel {
             FocusedPanel::Sessions => {
+                let old_selection = self.selected_session;
                 self.selected_session = self.selected_session.saturating_sub(page_size);
                 self.sessions_scroll = self.sessions_scroll.saturating_sub(page_size);
+                if old_selection != self.selected_session {
+                    self.sync_file_tree_to_session();
+                }
             }
             FocusedPanel::Output => {
                 self.output_auto_scroll = false;
@@ -648,8 +691,12 @@ impl App {
         let page_size = 10;
         match self.focused_panel {
             FocusedPanel::Sessions => {
+                let old_selection = self.selected_session;
                 self.selected_session = (self.selected_session + page_size).min(self.session_count.saturating_sub(1));
                 self.sessions_scroll = (self.sessions_scroll + page_size).min(self.session_count.saturating_sub(1));
+                if old_selection != self.selected_session {
+                    self.sync_file_tree_to_session();
+                }
             }
             FocusedPanel::Output => {
                 self.output_auto_scroll = false;
@@ -665,8 +712,12 @@ impl App {
     fn go_home(&mut self) {
         match self.focused_panel {
             FocusedPanel::Sessions => {
+                let old_selection = self.selected_session;
                 self.selected_session = 0;
                 self.sessions_scroll = 0;
+                if old_selection != self.selected_session {
+                    self.sync_file_tree_to_session();
+                }
             }
             FocusedPanel::Output => {
                 self.output_auto_scroll = false;
@@ -682,7 +733,11 @@ impl App {
     fn go_end(&mut self) {
         match self.focused_panel {
             FocusedPanel::Sessions => {
+                let old_selection = self.selected_session;
                 self.selected_session = self.session_count.saturating_sub(1);
+                if old_selection != self.selected_session {
+                    self.sync_file_tree_to_session();
+                }
             }
             FocusedPanel::Output => {
                 self.output_auto_scroll = true;

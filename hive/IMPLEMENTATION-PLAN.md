@@ -24,17 +24,18 @@
 
 **Phase 4: Complete** ✅
 
-| Feature | Status | Notes |
-| ------- | ------ | ----- |
-| 4.1 Fuzzy Finder | ✅ Done | Nucleo-powered fuzzy matching with highlighting |
-| 4.2 Configuration | ✅ Done | TOML config loads from `~/.config/hive/config.toml` |
-| 4.3 Help Overlay | ✅ Done | `?` shows shortcuts, Esc dismisses |
-| 4.4 External Editor | ✅ Done | `e` opens file in $EDITOR/$VISUAL/fallback |
-| 4.5 Visual Alerts | ✅ Done | Color indicators + terminal bell support |
-| 4.6 Status Bar | ✅ Enhanced | Model info, contextual hints, build status |
-| 4.7 Customizable Layout | ✅ Done | Panel widths + layout order configurable |
+| Feature                 | Status      | Notes                                               |
+| ----------------------- | ----------- | --------------------------------------------------- |
+| 4.1 Fuzzy Finder        | ✅ Done     | Nucleo-powered fuzzy matching with highlighting     |
+| 4.2 Configuration       | ✅ Done     | TOML config loads from `~/.config/hive/config.toml` |
+| 4.3 Help Overlay        | ✅ Done     | `?` shows shortcuts, Esc dismisses                  |
+| 4.4 External Editor     | ✅ Done     | `e` opens file in $EDITOR/$VISUAL/fallback          |
+| 4.5 Visual Alerts       | ✅ Done     | Color indicators + terminal bell support            |
+| 4.6 Status Bar          | ✅ Enhanced | Model info, contextual hints, build status          |
+| 4.7 Customizable Layout | ✅ Done     | Panel widths + layout order configurable            |
 
 **Recent Implementations:**
+
 - Tab bar component for workspace switching
 - Hierarchical workspaces tree with project grouping
 - Enhanced status bar with model info and key hints
