@@ -166,3 +166,91 @@ fn get_config_path() -> PathBuf {
         .map(|dirs| dirs.config_dir().join("config.toml"))
         .unwrap_or_else(|| PathBuf::from("~/.config/hive/config.toml"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let config = Config::default();
+        assert!(config.general.refresh_rate_ms > 0);
+        assert!(config.sessions.output_buffer_lines > 0);
+        assert!(!config.files.show_hidden);
+        assert!(config.files.git_status);
+    }
+
+    #[test]
+    fn test_layout_order_default() {
+        let order = LayoutOrder::default();
+        assert_eq!(order, LayoutOrder::SessionsOutputFiles);
+    }
+
+    #[test]
+    fn test_layout_order_panel_order() {
+        assert_eq!(LayoutOrder::SessionsOutputFiles.panel_order(), [0, 1, 2]);
+        assert_eq!(LayoutOrder::OutputSessionsFiles.panel_order(), [1, 0, 2]);
+        assert_eq!(LayoutOrder::FilesOutputSessions.panel_order(), [2, 1, 0]);
+        assert_eq!(LayoutOrder::SessionsFilesOutput.panel_order(), [0, 2, 1]);
+    }
+
+    #[test]
+    fn test_alerts_config_default() {
+        let alerts = AlertsConfig::default();
+        assert!(alerts.visual);
+        assert!(!alerts.sound);
+    }
+
+    #[test]
+    fn test_parse_config_toml() {
+        let toml = r#"
+            [general]
+            refresh_rate_ms = 250
+            layout_order = "output-sessions-files"
+
+            [sessions]
+            show_resource_usage = false
+            output_buffer_lines = 500
+
+            [files]
+            show_hidden = true
+            git_status = false
+
+            [alerts]
+            visual = true
+            sound = true
+        "#;
+
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.general.refresh_rate_ms, 250);
+        assert_eq!(config.general.layout_order, LayoutOrder::OutputSessionsFiles);
+        assert!(!config.sessions.show_resource_usage);
+        assert_eq!(config.sessions.output_buffer_lines, 500);
+        assert!(config.files.show_hidden);
+        assert!(!config.files.git_status);
+        assert!(config.alerts.visual);
+        assert!(config.alerts.sound);
+    }
+
+    #[test]
+    fn test_parse_partial_config() {
+        // Only specify some fields, rest should be defaults
+        let toml = r#"
+            [general]
+            refresh_rate_ms = 100
+        "#;
+
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.general.refresh_rate_ms, 100);
+        // Check defaults are applied
+        assert!(config.sessions.show_resource_usage);
+        assert!(!config.files.show_hidden);
+    }
+
+    #[test]
+    fn test_load_config_missing_file() {
+        // Should return default config when file doesn't exist
+        let result = load_config();
+        assert!(result.is_ok());
+    }
+}
