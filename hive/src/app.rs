@@ -473,6 +473,12 @@ impl App {
 
         match mouse.kind {
             MouseEventKind::Down(MouseButton::Left) => {
+                // Check if clicking on tab bar (row 0)
+                if mouse.row == 0 {
+                    self.handle_tab_click(mouse.column);
+                    return;
+                }
+
                 // Check if clicking on a panel border for resize
                 let (sessions_end, output_end) = self.get_panel_borders();
 
@@ -500,6 +506,53 @@ impl App {
                 self.scroll_panel_down(mouse.column);
             }
             _ => {}
+        }
+    }
+
+    /// Handle click on the tab bar to select a session
+    fn handle_tab_click(&mut self, x: u16) {
+        if self.sessions.is_empty() {
+            return;
+        }
+
+        // Calculate tab positions
+        // Format: "[N] name " for each tab
+        let mut current_x: u16 = 0;
+
+        for (i, session) in self.sessions.iter().enumerate() {
+            // Calculate this tab's width
+            // "[N] " = 4 chars for single digit, 5 for double digit
+            let num_width = if i + 1 >= 10 { 5 } else { 4 };
+
+            // Parse session name like tab_bar.rs does
+            let tab_text = if let Some((project, workspace)) = session.name.split_once('/') {
+                format!("{} ({})", project, workspace)
+            } else if let Some((project, workspace)) = session.name.rsplit_once('-') {
+                if !project.is_empty() && !workspace.is_empty() && project.len() > 2 {
+                    format!("{} ({})", project, workspace)
+                } else {
+                    session.name.clone()
+                }
+            } else {
+                session.name.clone()
+            };
+
+            // " name " = name.len() + 2
+            let tab_width = num_width + tab_text.len() as u16 + 2;
+
+            // Add separator space
+            let total_width = tab_width + 1;
+
+            if x >= current_x && x < current_x + total_width {
+                // Clicked on this tab
+                if self.selected_session != i {
+                    self.selected_session = i;
+                    self.sync_to_session();
+                }
+                return;
+            }
+
+            current_x += total_width;
         }
     }
 
