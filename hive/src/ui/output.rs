@@ -21,6 +21,28 @@ impl<'a> OutputPanel<'a> {
         Self { app }
     }
 
+    /// Check if we're viewing a session running hive itself (inception!)
+    fn is_viewing_self(&self) -> bool {
+        if let Some(session) = self.app.selected_session_data() {
+            // Check if session name or project path contains "hive"
+            let name_match = session.name.to_lowercase().contains("hive");
+            let path_match = session
+                .project_root
+                .to_string_lossy()
+                .to_lowercase()
+                .contains("/hive");
+
+            // Also check if output contains hive TUI markers
+            let output_match = self.app.output_lines.iter().any(|line| {
+                line.contains("Workspaces") && line.contains("Output") && line.contains("Files")
+            });
+
+            name_match || path_match || output_match
+        } else {
+            false
+        }
+    }
+
     pub fn render(self, frame: &mut Frame, area: Rect) {
         let is_focused = self.app.focused_panel == FocusedPanel::Output;
 
@@ -53,7 +75,33 @@ impl<'a> OutputPanel<'a> {
         let total_lines = self.app.output_line_count;
         let visible_height = chunks[0].height as usize;
 
-        let output_lines: Vec<Line> = if self.app.output_lines.is_empty() {
+        // Check for inception (viewing hive itself)
+        let is_inception = self.is_viewing_self();
+
+        let output_lines: Vec<Line> = if is_inception {
+            vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "  🐝 INCEPTION DETECTED 🐝",
+                    Style::default().fg(theme::accent::YELLOW).bold(),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "  You're trying to view hive... inside hive.",
+                    Style::default().fg(theme::text::SECONDARY),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "  We need to go deeper? No. No we don't.",
+                    Style::default().fg(theme::text::MUTED).italic(),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "  🎵 BWAAAAAM 🎵",
+                    Style::default().fg(theme::accent::PEACH),
+                )),
+            ]
+        } else if self.app.output_lines.is_empty() {
             vec![
                 Line::from(""),
                 Line::from(Span::styled(

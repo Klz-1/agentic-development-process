@@ -504,10 +504,17 @@ impl App {
     }
 
     /// Get panel border positions in terminal columns
+    /// Must match the layout calculation in ui/layout.rs
     fn get_panel_borders(&self) -> (u16, u16) {
+        const MIN_PANEL_WIDTH: u16 = 15;
         let width = self.terminal_width;
-        let sessions_end = (width as u32 * self.panel_widths.0 as u32 / 100) as u16;
-        let output_end = sessions_end + (width as u32 * self.panel_widths.1 as u32 / 100) as u16;
+
+        // Match the actual layout calculation
+        let sessions_width = ((self.panel_widths.0 as f32 / 100.0 * width as f32) as u16).max(MIN_PANEL_WIDTH);
+        let output_width = ((self.panel_widths.1 as f32 / 100.0 * width as f32) as u16).max(MIN_PANEL_WIDTH);
+
+        let sessions_end = sessions_width;
+        let output_end = sessions_end + output_width;
         (sessions_end, output_end)
     }
 

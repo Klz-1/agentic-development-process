@@ -17,6 +17,16 @@ impl<'a> FilesPanel<'a> {
         Self { app }
     }
 
+    /// Check if we're viewing hive's own directory (inception!)
+    fn is_viewing_self(&self) -> bool {
+        self.app
+            .file_tree
+            .root
+            .to_string_lossy()
+            .to_lowercase()
+            .contains("/hive")
+    }
+
     pub fn render(self, frame: &mut Frame, area: Rect) {
         let is_focused = self.app.focused_panel == FocusedPanel::Files;
 
@@ -42,66 +52,95 @@ impl<'a> FilesPanel<'a> {
             .border_style(Theme::border_style(is_focused))
             .style(Theme::panel_bg());
 
-        let items: Vec<ListItem> = self
-            .app
-            .file_tree
-            .entries
-            .iter()
-            .enumerate()
-            .map(|(idx, entry)| {
-                let name = entry
-                    .path
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy();
+        // Check for inception
+        let items: Vec<ListItem> = if self.is_viewing_self() {
+            vec![
+                ListItem::new(Line::from("")),
+                ListItem::new(Line::from(Span::styled(
+                    "  🪞 RECURSION DETECTED 🪞",
+                    Style::default().fg(theme::accent::CYAN).bold(),
+                ))),
+                ListItem::new(Line::from("")),
+                ListItem::new(Line::from(Span::styled(
+                    "  Hive cannot browse itself.",
+                    Style::default().fg(theme::text::SECONDARY),
+                ))),
+                ListItem::new(Line::from("")),
+                ListItem::new(Line::from(Span::styled(
+                    "  It's turtles all the way down,",
+                    Style::default().fg(theme::text::MUTED).italic(),
+                ))),
+                ListItem::new(Line::from(Span::styled(
+                    "  but we stopped here.",
+                    Style::default().fg(theme::text::MUTED).italic(),
+                ))),
+                ListItem::new(Line::from("")),
+                ListItem::new(Line::from(Span::styled(
+                    "  🐢 🐢 🐢",
+                    Style::default().fg(theme::accent::GREEN),
+                ))),
+            ]
+        } else {
+            self.app
+                .file_tree
+                .entries
+                .iter()
+                .enumerate()
+                .map(|(idx, entry)| {
+                    let name = entry
+                        .path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy();
 
-                let mut prefix = String::new();
-                for _ in 0..entry.depth.saturating_sub(1) {
-                    prefix.push_str("│   ");
-                }
-
-                if entry.depth > 0 {
-                    let is_last = self.is_last_at_depth(idx, entry.depth);
-                    if is_last {
-                        prefix.push_str("└── ");
-                    } else {
-                        prefix.push_str("├── ");
+                    let mut prefix = String::new();
+                    for _ in 0..entry.depth.saturating_sub(1) {
+                        prefix.push_str("│   ");
                     }
-                }
 
-                let is_expanded = self.app.file_tree.is_expanded(&entry.path);
-                let icon = match entry.kind {
-                    FileKind::Directory => {
-                        if is_expanded { "▾ " } else { "▸ " }
-                    }
-                    FileKind::File => "  ",
-                };
-
-                let (git_text, git_style) = match entry.git_status {
-                    Some(GitStatus::Modified) => (" [M]", Theme::git_modified()),
-                    Some(GitStatus::Staged) => (" [S]", Theme::git_staged()),
-                    Some(GitStatus::Untracked) => (" [+]", Theme::git_untracked()),
-                    Some(GitStatus::Conflicted) => (" [!]", Theme::status_error()),
-                    None => ("", Style::default()),
-                };
-
-                let styled_line = Line::from(vec![
-                    Span::styled(prefix, Style::default().fg(theme::text::MUTED)),
-                    Span::styled(
-                        icon.to_string(),
-                        if entry.kind == FileKind::Directory {
-                            Theme::directory_icon()
+                    if entry.depth > 0 {
+                        let is_last = self.is_last_at_depth(idx, entry.depth);
+                        if is_last {
+                            prefix.push_str("└── ");
                         } else {
-                            Style::default()
-                        },
-                    ),
-                    Span::styled(name.to_string(), Style::default().fg(theme::text::PRIMARY)),
-                    Span::styled(git_text.to_string(), git_style),
-                ]);
+                            prefix.push_str("├── ");
+                        }
+                    }
 
-                ListItem::new(styled_line)
-            })
-            .collect();
+                    let is_expanded = self.app.file_tree.is_expanded(&entry.path);
+                    let icon = match entry.kind {
+                        FileKind::Directory => {
+                            if is_expanded { "▾ " } else { "▸ " }
+                        }
+                        FileKind::File => "  ",
+                    };
+
+                    let (git_text, git_style) = match entry.git_status {
+                        Some(GitStatus::Modified) => (" [M]", Theme::git_modified()),
+                        Some(GitStatus::Staged) => (" [S]", Theme::git_staged()),
+                        Some(GitStatus::Untracked) => (" [+]", Theme::git_untracked()),
+                        Some(GitStatus::Conflicted) => (" [!]", Theme::status_error()),
+                        None => ("", Style::default()),
+                    };
+
+                    let styled_line = Line::from(vec![
+                        Span::styled(prefix, Style::default().fg(theme::text::MUTED)),
+                        Span::styled(
+                            icon.to_string(),
+                            if entry.kind == FileKind::Directory {
+                                Theme::directory_icon()
+                            } else {
+                                Style::default()
+                            },
+                        ),
+                        Span::styled(name.to_string(), Style::default().fg(theme::text::PRIMARY)),
+                        Span::styled(git_text.to_string(), git_style),
+                    ]);
+
+                    ListItem::new(styled_line)
+                })
+                .collect()
+        };
 
         let list = List::new(items)
             .block(block)
