@@ -1,0 +1,33 @@
+# Copy to .github/workflows/ci.yml — the mechanical merge gate.
+# Pair with branch protection on main requiring the "test" check, so
+# nothing (agent or human) merges red.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run lint
+
+  # Optional: @claude mentions on issues/PRs get investigated and fixed
+  # automatically. See https://github.com/anthropics/claude-code-action
+  claude:
+    if: contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

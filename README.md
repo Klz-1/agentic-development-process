@@ -2,6 +2,15 @@
 
 A battle-tested framework for managing multi-phase software development with AI coding agents.
 
+> **⚡ v2 is here (June 2026):** [`AGENTIC-DEVELOPMENT-PROCESS-V2.md`](./AGENTIC-DEVELOPMENT-PROCESS-V2.md)
+> rebuilds this process on current native agent-harness capabilities (subagents,
+> hooks, plan mode, skills, CLAUDE.md, worktree isolation, PR automation).
+> Core idea: **encode, don't exhort** — every gate v1 enforced via prompts and
+> human polling becomes a hook, a CI check, or branch protection, compressing
+> the human role to four decision points from idea to production. Ready-to-use
+> artifacts live in [`v2/`](./v2/). The v1 document below remains as the
+> origin of the patterns and for harnesses without native orchestration.
+
 ## Why This Exists
 
 When building complex software with AI agents, the biggest challenge isn't the AI's capability—it's **context continuity**. Agents lose memory between sessions, leading to:

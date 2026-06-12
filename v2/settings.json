@@ -1,0 +1,24 @@
+{
+  "$comment": "Copy to <project>/.claude/settings.json (commit it — it applies to every contributor and every agent session). Hook scripts go in <project>/.claude/hooks/.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/gate-commit.sh",
+            "timeout": 300,
+            "statusMessage": "Quality gate: running tests + secret scan before commit..."
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git merge:*)"
+    ]
+  }
+}

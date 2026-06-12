@@ -1,0 +1,39 @@
+# [Project Name]
+
+[One sentence: what this is. Link to ./SPEC.md for the why.]
+
+## Definition of done
+A feature is done when its entry in ./FEATURES.md is flipped to `passing`
+by the evaluator — never by the builder that implemented it. Work
+test-first: write the feature's Verify test, then implement until green.
+
+## Commands
+- Install: `npm install`
+- Build: `npm run build`
+- Test (all): `npm test`
+- Test (one file): `npm test -- <path>`
+- Lint: `npm run lint`
+- Dev server: `npm run dev` (http://localhost:3000)
+
+## Architecture
+- [src/api/ — route handlers; validate input with zod at the boundary]
+- [src/services/ — business logic; no framework imports here]
+- [src/db/ — Prisma schema + repositories; services never query directly]
+- [tests/ — colocated with source as *.test.ts]
+
+## Conventions
+- [TypeScript strict; no `any` without a comment justifying it]
+- [Errors: throw AppError subclasses; handlers map them to HTTP responses]
+- [Secrets only via environment variables — the commit hook scans for leaks]
+
+## Workflow
+- Branch per slice: `feat/<slice-name>`; PRs target `main` (protected).
+- Commits are blocked by a hook unless the test suite passes. If blocked,
+  fix the failure — do not work around the hook.
+- Do not edit FEATURES.md statuses; the evaluator owns them.
+
+## Escalation
+Ask the user only for: taste/UX calls the spec doesn't settle, architecture
+forks with long-term consequences, missing credentials, or anything that
+contradicts SPEC.md. Everything else: decide, note it in the PR description,
+move on.

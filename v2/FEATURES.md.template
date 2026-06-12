@@ -1,0 +1,37 @@
+# FEATURES.md — Executable Spec
+
+**Source:** ./SPEC.md · **Status legend:** `failing` | `passing`
+
+Rules:
+- Every feature is a falsifiable claim about observable behavior, with a
+  Verify command that proves it.
+- Builders implement; only the evaluator flips `failing` → `passing`,
+  and only after running Verify itself.
+- Slices are vertical (end-to-end shippable) and sized to one PR.
+
+---
+
+## Slice 1: [foundation] — no dependencies
+
+### F-001: [Behavior as a falsifiable claim]
+- **Claim:** [e.g., GET /healthz returns 200 with {"status":"ok"} when the
+  DB is reachable, 503 otherwise.]
+- **Verify:** `npm test -- tests/healthz.test.ts`
+- **Slice:** 1-foundation   **Depends:** —
+- **Status:** failing
+
+### F-002: ...
+
+## Slice 2: [auth] — depends on Slice 1
+
+### F-010: ...
+
+## Slice 3: [core] — depends on Slice 2
+## Slice 4: [feature-x] — depends on Slice 3 (parallel with Slice 5)
+## Slice 5: [feature-y] — depends on Slice 3 (parallel with Slice 4)
+
+---
+
+## Non-goals (from SPEC.md — do not implement)
+- [Explicitly out of scope item 1]
+- [Explicitly out of scope item 2]
