@@ -190,6 +190,7 @@ The process above is substrate-independent. Pick per project:
 | Substrate | Use when | Notes |
 |---|---|---|
 | **Single session + subagents** (`Agent` tool, `isolation: "worktree"`) | Default. Small/medium projects, you're at the keyboard sometimes | Simplest; parallel subagents for independent slices; results return inline |
+| **Dynamic workflows** (`ultracode` keyword, `/effort ultracode`, or a saved `/command`) | Fan-out at scale within a stage: codebase-wide audits, 100+ file migrations, cross-checked evaluation sweeps | Claude writes a rerunnable orchestration script (up to 16 concurrent / 1,000 agents per run); intermediate results stay out of context; save to `.claude/workflows/` so the orchestration itself becomes a versioned repo artifact — e.g. a standing evaluator sweep that adversarially cross-checks findings |
 | **Parallel local sessions** (`claude --worktree`) | You want to watch 2–3 slices interactively | Native worktree isolation; agent view to monitor |
 | **Cloud sessions (Claude Code on the web)** | You want to dispatch from anywhere and walk away | Sessions survive your laptop closing; PR-event subscriptions work natively |
 | **Agent teams** (experimental) | Large builds, 3+ concurrent slices, shared task list | Lead coordinates teammates with peer messaging; verify current stability before relying on it |
